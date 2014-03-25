@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Copyright 2014 Loic Merckel Licensed under the Apache License, Version 
+	2.0 (the "License"); you may not use this file except in compliance with 
+	the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
+	Unless required by applicable law or agreed to in writing, software distributed 
+	under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES 
+	OR CONDITIONS OF ANY KIND, either express or implied. See the License for 
+	the specific language governing permissions and limitations under the License. -->
+
+<settings>
+
+	<proxy>
+		<http>
+			<active>false</active>
+			<user>user-http</user>
+			<password>password-http</password>
+			<host>host-http</host>
+			<port>9000</port>
+		</http>
+		<https>
+			<active>false</active>
+			<user>user-https</user>
+			<password>password-https</password>
+			<host>host-https</host>
+			<port>9001</port>
+		</https>
+	</proxy>
+
+	<localization>
+		<language>en</language>
+		<region>US</region>
+	</localization>
+
+	<authentication>
+		<api>
+			<key>api_key</key>
+			<secret>api_secret</secret>
+			<callback>http://localhost:9000/</callback>
+		</api>
+	</authentication>
+
+</settings>

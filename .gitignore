@@ -1,0 +1,22 @@
+# Setting File #
+swiftexplorer-settings.xml
+
+# Mac Specific File #
+.DS_Store
+
+# Eclipse Files #
+.classpath
+.project
+.settings
+
+# Target Folder #
+target/
+
+# Class Files #
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
