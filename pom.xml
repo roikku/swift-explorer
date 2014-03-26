@@ -254,7 +254,7 @@
 		</repository>
 	</repositories>
 	
-	
+	<!-- We add this profile because BuildHive is still not supporting the Jdk1.8.0 -->
 	<profiles>
 		<profile>
 		  <id>buildhive</id>
@@ -270,8 +270,6 @@
 						<artifactId>maven-assembly-plugin</artifactId>
 						<version>${maven-assembly-plugin.version}</version>
 						<configuration>
-							<source>1.7</source>
-							<target>1.7</target>
 							<showDeprecation>true</showDeprecation>
 							<showWarnings>true</showWarnings>
 							<archive>
