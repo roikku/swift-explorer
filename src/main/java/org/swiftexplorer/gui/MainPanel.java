@@ -1155,12 +1155,12 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	        if (JOptionPane.showConfirmDialog(this, new Object[] { getLocalizedString("Name"), nameTf, priv }, getLocalizedString("Create_Container"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) 
 	        {
 	        	String name = nameTf.getText() ;
-	        	if (name == null || name.isEmpty())
+	        	if (name == null || name.trim().isEmpty())
 	        	{
 	        		JOptionPane.showMessageDialog(this, getLocalizedString("please_enter_non_empty_directory_name"));
 	        		continue ;
 	        	}
-	        	return new ContainerSpecification(name, priv.isSelected());
+	        	return new ContainerSpecification(name.trim(), priv.isSelected());
 	        }
 	        break ;
         }
@@ -1588,13 +1588,13 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	        if (JOptionPane.showConfirmDialog(this, new Object[] { getLocalizedString("Directory_Name"), directoryName}, getLocalizedString("Create_Directory"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) 
 	        {
 	        	String name = directoryName.getText() ;
-	        	if (name == null || name.isEmpty())
+	        	if (name == null || name.trim().isEmpty())
 	        	{
 	        		JOptionPane.showMessageDialog(this, getLocalizedString("please_enter_non_empty_directory_name"));
 	        		continue ;
 	        	}
 	        	else
-	        		ops.createDirectory(container, parentObject, name, callback);
+	        		ops.createDirectory(container, parentObject, name.trim(), callback);
 	        }
 	        break ;
         }
