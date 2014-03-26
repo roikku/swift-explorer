@@ -16,7 +16,6 @@
 package org.swiftexplorer.gui.preview;
 
 import java.awt.CardLayout;
-import java.awt.Component;
 import java.io.ByteArrayInputStream;
 
 import javax.swing.JPanel;
