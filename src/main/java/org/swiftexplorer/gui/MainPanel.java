@@ -246,6 +246,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private final boolean nativeMacOsX = SwiftExplorer.isMacOsX() ; 
     
+    private final boolean createDefaultContainerInMockMode = true ;
+    
 
     /**
      * creates MainPanel and immediately logs in using the given credentials.
@@ -913,6 +915,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             @Override
             public void onLoginSuccess() {
                 super.onLoginSuccess();
+                
+                if (createDefaultContainerInMockMode)
+                	ops.createContainer(new ContainerSpecification("default", true), callback);
             }
 
             @Override
@@ -1143,10 +1148,21 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     
     private ContainerSpecification doGetContainerSpec() {
-        JTextField name = new JTextField();
+    	JTextField nameTf = new JTextField();        
         JCheckBox priv = new JCheckBox(getLocalizedString("private_container"));
-        if (JOptionPane.showConfirmDialog(this, new Object[] { getLocalizedString("Name"), name, priv }, getLocalizedString("Create_Container"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
-            return new ContainerSpecification(name.getText(), priv.isSelected());
+        while (true)
+        {
+	        if (JOptionPane.showConfirmDialog(this, new Object[] { getLocalizedString("Name"), nameTf, priv }, getLocalizedString("Create_Container"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) 
+	        {
+	        	String name = nameTf.getText() ;
+	        	if (name == null || name.isEmpty())
+	        	{
+	        		JOptionPane.showMessageDialog(this, getLocalizedString("please_enter_non_empty_directory_name"));
+	        		continue ;
+	        	}
+	        	return new ContainerSpecification(name, priv.isSelected());
+	        }
+	        break ;
         }
         return null;
     }

@@ -68,9 +68,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
     private volatile Account account = null;
     
-    private volatile boolean isMock = false ;
-    private boolean dirtyWorkaroundDone = false ;
-    
     // TODO: temporary. For experimentation
     private final boolean experimentInputStreamProgressMonitor = false ;
 
@@ -95,8 +92,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	public synchronized void login(AccountConfig accConf, SwiftAccess swiftAccess, SwiftCallback callback) {
 
 		account = new AccountFactory(accConf).setSwiftAccess(swiftAccess).setAuthUrl("").createAccount();
-		isMock = accConf.isMock() ;
-				
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
 	}
@@ -109,10 +104,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
     public synchronized void login(AccountConfig accConf, String url, String tenant, String user, String pass, SwiftCallback callback) {
 
     	account = new AccountFactory(accConf).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url).createAccount();
-    	isMock = accConf.isMock() ;
-
-    	// TODO: deactivates the dirty workaround
-    	//isMock = false ;
     	
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -125,7 +116,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
     @Override
     public synchronized void logout(SwiftCallback callback) {
         account = null;
-        dirtyWorkaroundDone = false ;
         callback.onLogoutSuccess();
         callback.onNumberOfCalls(0);
     }
@@ -156,6 +146,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
     
     private Collection<Container> eagerFetchContainers(Account parent) {   	
+    	
+    	parent.reload();
     	
         List<Container> results = new ArrayList<Container>(parent.getCount());
         PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
@@ -352,27 +344,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     @Override
     public synchronized void refreshContainers(SwiftCallback callback) {
     	
-    	CheckAccount () ;
-    	
-    	// TODO: fix this problem 
-    	//
-    	// It seems to have a bug in mock mode: if we call account.list without any container, then
-    	// the account.list will no longer work properly. The account will have the container, though, 
-    	// i.e., account.getContainer("name") will return the expected container. 
-    	// Therefore we add this default container (dirty temporary work-around)
-    	//
-    	// ATTENTION: This problem might happen even in non-mock mode!!!
-        if (isMock)
-        {
-        	if (!dirtyWorkaroundDone)
-        	{
-        		dirtyWorkaroundDone = true ;
-	    		Container defaultContainer = account.getContainer("default") ;
-	    		if (!defaultContainer.exists())
-	    			createContainer(new ContainerSpecification("default", true), callback);
-        	}
-        }
-    	
+    	CheckAccount () ;    	
         callback.onUpdateContainers(eagerFetchContainers(account));
         callback.onNumberOfCalls(account.getNumberOfCalls());
     }

@@ -73,22 +73,13 @@ public class SwiftOperationsTest {
     }
     
     
-    // ATTENTION: when testing this function, make sure that the dirty workaround
-    // in the SwiftOperation class has been deactivated...
     @Test
-    public void shouldFixThisProblem() {
+    public void shouldAddAndListContainer() {
     	    
-        // http://stackoverflow.com/questions/5606541/how-to-capture-a-list-of-specific-type-with-mockito
-        // http://docs.mockito.googlecode.com/hg/org/mockito/ArgumentCaptor.html
-    	//@SuppressWarnings({ "unchecked", "rawtypes" })
-		//Class<ArrayList<Container>> listClass = (Class<ArrayList<Container>>)(Class)ArrayList.class;
-    	//ArgumentCaptor<ArrayList<Container> > argument = ArgumentCaptor.forClass(listClass);
     	@SuppressWarnings({ "unchecked", "rawtypes" })
 		ArgumentCaptor<List<Container> > argument = ArgumentCaptor.forClass((Class) List.class);
     	
     	//First refresh the empty account
-    	// This is the cause of the problem. If it is call after the creation of a new container
-    	// then it is fine
     	ops.refreshContainers(callback) ;
     	
     	// Then add a new container
