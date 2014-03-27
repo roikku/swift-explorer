@@ -12,6 +12,11 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
+ *  
+ *  
+ *  
+ *  Note: This class has been renamed from CloudiePanelTest to MainPanelTest
+ *  
  */
 package org.swiftexplorer.gui;
 
@@ -19,11 +24,11 @@ package org.swiftexplorer.gui;
 import org.junit.Test;
 
 /**
- * CloudiePanelTest.
+ * MainPanelTest.
  * @author E.Hooijmeijer
  *
  */
-public class CloudiePanelTest {
+public class MainPanelTest {
 
     @Test
     public void shouldCreate() {
