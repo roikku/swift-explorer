@@ -44,7 +44,7 @@ public class ConfigTest {
 		} 
 		catch (ConfigurationException e) 
 		{
-			e.printStackTrace();
+			logger.error("Error occurred while loading the cinfiguration file", e);
 			return false ;
 		}
 		

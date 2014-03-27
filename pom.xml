@@ -45,7 +45,7 @@
 		<jcommander.version>1.30</jcommander.version>
 		<mockito.version>1.9.0</mockito.version>
 		<javafx.min.version>2.2</javafx.min.version>
-		<commons-configuration.version>1.9</commons-configuration.version>
+		<commons-configuration.version>1.10</commons-configuration.version>
 		<guava.version>16.0.1</guava.version>
 		<junit.version>4.10</junit.version>
 		<pdfbox.version>1.8.4</pdfbox.version>
@@ -60,6 +60,7 @@
 		<javafx-maven-plugin.version>2.0</javafx-maven-plugin.version>
 		<maven-eclipse-plugin.version>2.9</maven-eclipse-plugin.version>
 		<maven-assembly-plugin.version>2.4</maven-assembly-plugin.version>
+		<commons-collections.version>3.2.1</commons-collections.version>
 	</properties>
 
 	<build>
@@ -176,6 +177,12 @@
 			<version>${commons-codec.version}</version>
 		</dependency>
 
+		<dependency>
+			<groupId>commons-collections</groupId>
+			<artifactId>commons-collections</artifactId>
+			<version>${commons-collections.version}</version>
+		</dependency>
+            
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
