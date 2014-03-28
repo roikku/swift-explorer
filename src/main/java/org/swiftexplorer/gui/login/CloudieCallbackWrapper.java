@@ -21,6 +21,7 @@ import java.util.Collection;
 
 
 
+
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.model.Container;
 import org.javaswift.joss.model.StoredObject;
@@ -115,7 +116,8 @@ public class CloudieCallbackWrapper implements SwiftCallback {
      * {@inheritDoc}.
      */
 	@Override
-	public void onProgress(double p, String msg) {
-		this.target.onProgress(p, msg);
+	public void onProgress(double totalProgress, String totalMsg,
+			double currentProgress, String currentMsg) {
+		this.target.onProgress(totalProgress, totalMsg, currentProgress, currentMsg);
 	}
 }
