@@ -36,6 +36,7 @@ import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountFactory;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
+import org.swiftexplorer.util.FileUtils.InputStreamProgressFilter;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,6 +61,7 @@ import org.javaswift.joss.model.StoredObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class SwiftOperationsImpl implements SwiftOperations {
 	
     private static final int MAX_PAGE_SIZE = 9999;
@@ -69,7 +71,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     private volatile Account account = null;
     
     // TODO: temporary. For experimentation
-    private final boolean experimentInputStreamProgressMonitor = false ;
+    private final boolean experimentInputStreamProgressMonitor = true ;
 
     public SwiftOperationsImpl() {
     	super () ;
@@ -119,6 +121,58 @@ public class SwiftOperationsImpl implements SwiftOperations {
         callback.onLogoutSuccess();
         callback.onNumberOfCalls(0);
     }
+    
+    
+	private static class ProgressInformation implements InputStreamProgressFilter.StreamProgressCallback
+	{
+		private double totalProgress = 0 ;
+		private double currentProgress = 0 ;
+		private String totalMessage = null ;
+		private String currentMessage = null ;
+		private final boolean isSingleTask ;
+		
+		private final SwiftCallback callback ;
+		
+		public ProgressInformation (SwiftCallback callback, boolean isSingleTask)
+		{
+			super () ;
+			this.callback = callback ;
+			this.isSingleTask = isSingleTask ;
+		}
+		
+		public synchronized void report ()
+		{
+			if (callback == null)
+				return ;
+			callback.onProgress(totalProgress, totalMessage, (isSingleTask)?(totalProgress):(currentProgress), (isSingleTask)?(totalMessage):(currentMessage));
+		}
+
+		@Override
+		public synchronized void onStreamProgress(double progress) {
+			setCurrentProgress(progress) ;
+			report () ;
+		}
+		
+		public synchronized void setCurrentProgress (double p)
+		{
+			currentProgress = p ;
+		}
+		
+		public synchronized void setTotalProgress (double p)
+		{
+			totalProgress = p ;
+		}
+		
+		public synchronized void setTotalMessage (String msg)
+		{
+			totalMessage = msg ;
+		}
+		
+		public synchronized void setCurrentMessage (String msg)
+		{
+			currentMessage = msg ;
+		}
+	}
     
 
     /**
@@ -246,6 +300,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
     		
     		int currentUplodedFilesCount = 0 ;
     		int totalFiles = listObj.size() ;
+    		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+    		
             for (StoredObject so : listObj) 
             {
             	++currentUplodedFilesCount ;
@@ -253,7 +309,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
             	if (so == null)
             		continue ;
             	
-            	progress (currentUplodedFilesCount, totalFiles, so, callback) ;
+            	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
             	
             	StringBuilder pathBuilder = new StringBuilder () ;
             	pathBuilder.append(target.getPath ()) ;
@@ -273,7 +329,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
             		File parent = destFile.getParentFile() ;
             		if (parent != null)
             			parent.mkdirs() ;
-            		downloadObject (so, destFile) ;
+            		downloadObject (so, destFile, progInfo, callback) ;
             	}
             }
     		logger.info("Downloaded directory '{}' into '{}'", storedObject.getName(), target.getPath());
@@ -284,22 +340,59 @@ public class SwiftOperationsImpl implements SwiftOperations {
     		throw new AssertionError ("An object directory can only be downloaded in a directory.") ;
     	}
     	else
-    		downloadObject (storedObject, target) ;
+    	{
+    		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+    		totalProgress (1, 1, storedObject, progInfo, true) ;
+    		downloadObject (storedObject, target, progInfo, callback) ;
+    	}
         callback.onNumberOfCalls(account.getNumberOfCalls());
     }
     
     
-    private void downloadObject (StoredObject storedObject, File target) throws IOException
-    {
+    private void downloadObject (StoredObject storedObject, File target, ProgressInformation progInfo, SwiftCallback callback) throws IOException
+    {		
     	if (storedObject == null || target == null)
     		return ;
-    	if (!experimentInputStreamProgressMonitor)
-    		storedObject.downloadObject(target);
-    	else
+    	try
     	{
-    		InputStream in = FileUtils.getInputStreamWithProgressMonitor(storedObject.downloadObjectAsInputStream(), null, String.format("Downloading ", storedObject.getName())) ;
-    		FileUtils.saveInputStreamInFile (in, target, true) ;
+	    	if (!experimentInputStreamProgressMonitor)
+	    		storedObject.downloadObject(target);
+	    	else
+	    	{	    		    		
+	    		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
+	    		InputStream in = FileUtils.getInputStreamWithProgressFilter(progInfo, storedObject.getContentLength(), storedObject.downloadObjectAsInputStream()) ;	    		
+
+	    		FileUtils.saveInputStreamInFile (in, target, true) ;
+	    	}
     	}
+	    catch (OutOfMemoryError ome)
+	    {
+	    	System.gc() ; // pointless at this stage, but anyway...
+	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    }
+    }
+    
+    
+    private void uploadObject (StoredObject storedObject, File file, ProgressInformation progInfo, SwiftCallback callback) throws IOException
+    {			
+    	if (storedObject == null || file == null)
+    		return ;
+    	try
+    	{
+	    	if (!experimentInputStreamProgressMonitor)
+	    		storedObject.uploadObject(file);
+	    	else
+	    	{	    		
+	    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
+	    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
+	    		storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
+	    	}
+    	}
+	    catch (OutOfMemoryError ome)
+	    {
+	    	System.gc() ; // pointless at this stage, but anyway...
+	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    }
     }
 
     
@@ -381,7 +474,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
         	if (showProgress)
         	{
         		current += list.size() ;
-        		callback.onProgress(current / (double)total, "Refreshing the list of documents") ;
+        		callback.onProgress(current / (double)total, "Refreshing the list of documents", 0, "") ;
         	}
         	
             callback.onAppendStoredObjects(container, page++, list);
@@ -447,24 +540,32 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	}
 	
 	
-	private void progress (int currentUplodedFilesCount, int totalFiles, Path currentFile, SwiftCallback callback) throws IOException
+	private void totalProgress (int currentUplodedFilesCount, int totalFiles, Path currentFile, ProgressInformation progInfo, boolean report) throws IOException
 	{
-		if (callback == null || currentFile == null)
+		if (progInfo == null || currentFile == null)
 			return;
 		// Progress notification
 		double progress = currentUplodedFilesCount / (double)totalFiles ;
 		BasicFileAttributes attr = FileUtils.getFileAttr(currentFile) ;
-		callback.onProgress(progress, String.format("%d / %d files processed (current file size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(attr.size(),  true))) ;
+		progInfo.setTotalProgress(progress);
+		progInfo.setTotalMessage(String.format("%d / %d files processed (current file size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(attr.size(),  true)));
+		
+		if (report)
+			progInfo.report();
 	}
 	
 	
-	private void progress (int currentUplodedFilesCount, int totalFiles, StoredObject so, SwiftCallback callback) 
+	private void totalProgress (int currentUplodedFilesCount, int totalFiles, StoredObject so, ProgressInformation progInfo, boolean report) 
 	{
-		if (callback == null)
+		if (progInfo == null)
 			return;
 		// Progress notification
 		double progress = currentUplodedFilesCount / (double)totalFiles ;
-		callback.onProgress(progress, String.format("%d / %d objects processed (current object size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(so.getContentLength(),  true))) ;
+		progInfo.setTotalProgress(progress);
+		progInfo.setTotalMessage(String.format("%d / %d objects processed (current object size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(so.getContentLength(),  true)));
+		
+		if (report)
+			progInfo.report();
 	}
 	
 	
@@ -491,6 +592,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		
 		int totalFiles = filesQueue.size() ;
 		int currentUplodedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
 		for (Path path : filesQueue)
 		{			
@@ -502,7 +604,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				continue ;
 
 			// Progress notification
-			progress (currentUplodedFilesCount, totalFiles, path, callback) ;
+			totalProgress (currentUplodedFilesCount, totalFiles, path, progInfo, true) ;
 			
 			StringBuilder objectPathBuilder = new StringBuilder () ;
 			objectPathBuilder.append (parentDir) ;
@@ -533,10 +635,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			}
 			else
 			{
-				if (!experimentInputStreamProgressMonitor)
-					obj.uploadObject(path.toFile());
-				else
-					obj.uploadObject(FileUtils.getInputStreamWithProgressMonitor(path, null, String.format("Uploading ", path)));
+				uploadObject (obj, path.toFile(), progInfo, callback) ;
 			}
 		}
 		reloadContainer(container, callback);
@@ -565,6 +664,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		
 		int totalFiles = files.length ;
 		int currentUplodedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
 		for (File file : files)
 		{			
@@ -574,7 +674,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				continue ;
 
 			// Progress notification
-			progress (currentUplodedFilesCount, totalFiles, Paths.get(file.toURI()), callback) ;
+			totalProgress (currentUplodedFilesCount, totalFiles, Paths.get(file.toURI()), progInfo, true) ;
 			
 			StringBuilder objectPathBuilder = new StringBuilder () ;
 			objectPathBuilder.append (parentDir) ;
@@ -586,10 +686,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			if (shouldBeIgnored (obj, Paths.get(file.getPath()), overwriteAll))
 				continue ;
 			
-			if (!experimentInputStreamProgressMonitor)
-				obj.uploadObject(file);
-			else
-				obj.uploadObject(FileUtils.getInputStreamWithProgressMonitor(Paths.get(file.getPath()), null, String.format("Uploading ", Paths.get(file.getPath()))));
+			uploadObject (obj, file, progInfo, callback) ;
 		}
 		reloadContainer(container, callback);
 		callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -644,6 +741,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
 		int currentUplodedFilesCount = 0 ;
 		int totalFiles = listObj.size() ;
+		ProgressInformation progInfo = new ProgressInformation (callback, true) ;
 		
         for (StoredObject so : listObj) 
         {
@@ -652,7 +750,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
         	if (so == null)
         		continue ;
         	
-        	progress (currentUplodedFilesCount, totalFiles, so, callback) ;
+        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
         	
         	// defensive check, it should not be necessary, provided that
         	// the prefix was given to eagerFetchStoredObjects 

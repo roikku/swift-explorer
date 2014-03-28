@@ -121,11 +121,13 @@ public interface SwiftOperations {
         void onStoredObjectDeleted(Container container, StoredObject storedObject);
 
         /**
-         * signals the progress of the current task.
-         * @param p, the progress, should be between 0 to 1.
-         * @param msg, and arbitrary message
+         * signals the progress of the total task and current task.
+         * @param totalProgress, the progress of the total task, should be between 0 to 1.
+         * @param totalMsg, and arbitrary message
+         * @param currentProgress, the progress of the current task, should be between 0 to 1.
+         * @param currentMsg, and arbitrary message
          */
-        void onProgress(double p, String msg);
+        void onProgress(double totalProgress, String totalMsg, double currentProgress, String currentMsg);
     }
 
     

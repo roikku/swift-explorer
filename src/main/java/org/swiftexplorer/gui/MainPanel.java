@@ -107,7 +107,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.Icon;
@@ -126,7 +125,6 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
@@ -185,8 +183,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private final JTextField searchTextField = new JTextField(16);
     private final JButton progressButton = new JButton() ;
-    private final JProgressBar progressBar = new JProgressBar (0, 100) ;
-    private final JLabel progressLabel = new JLabel () ;
+    private final ProgressPanel progressPanel = new ProgressPanel () ;
     
     private final JTabbedPane objectViewTabbedPane = new JTabbedPane ();
     @SuppressWarnings("unused")
@@ -383,10 +380,17 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         progressButton.setEnabled(false);
         progressButton.setToolTipText(getLocalizedString("Show_Progress"));
 
-        progressBar.setStringPainted(true);
-        progressLabel.setMinimumSize(new Dimension (200, 10)) ;
-        progressLabel.setPreferredSize(new Dimension (400, 30)) ;
-        progressLabel.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
+        /*
+        progressBarTotal.setStringPainted(true);
+        progressLabelTotal.setMinimumSize(new Dimension (200, 10)) ;
+        progressLabelTotal.setPreferredSize(new Dimension (400, 30)) ;
+        progressLabelTotal.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
+        
+        progressBarCurrent.setStringPainted(true);
+        progressLabelCurrent.setMinimumSize(new Dimension (200, 10)) ;
+        progressLabelCurrent.setPreferredSize(new Dimension (400, 30)) ;
+        progressLabelCurrent.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
+        */
         
         //
         createLists();
@@ -1724,20 +1728,14 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     
     public void onProgressButton ()
-    {
-    	if (progressBar.isShowing())
+    {    	
+    	if (progressPanel.isShowing())
     		return ;
-    	final int border = 15 ;
-    	Box box = Box.createVerticalBox() ;
-    	box.setBorder(BorderFactory.createEmptyBorder(border, border, border, border));
-    	
-    	box.add (progressLabel) ;
-    	box.add (progressBar) ;
-    	
+    
     	JDialog dlg = new JDialog (owner) ;
-    	dlg.setContentPane(box);
+    	dlg.setContentPane(progressPanel);
     	dlg.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
-    	dlg.setSize(200, 100) ;
+    	dlg.setTitle(getLocalizedString("Progress"));
     	dlg.pack();
     	center (dlg) ;
     	dlg.setVisible(true);
@@ -1785,10 +1783,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             statusPanel.onStart();
 
             progressButton.setEnabled(true);
-            progressBar.setValue(0);
-            progressLabel.setText("Processing");
-            progressBar.setIndeterminate(true) ;
-            
+            progressPanel.start();
+
             enableDisable();
         }
     }
@@ -1806,8 +1802,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             
             
             progressButton.setEnabled(false);
-            progressBar.setValue(100);
-            Window progressWindow = SwingUtilities.getWindowAncestor(progressBar);
+            progressPanel.done() ;
+            Window progressWindow = SwingUtilities.getWindowAncestor(progressPanel);            
             if (progressWindow != null)
             	progressWindow.setVisible(false) ;
         }
@@ -1902,16 +1898,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
      * {@inheritDoc}.
      */
 	@Override
-	public void onProgress(final double p, final String msg) {
+	public void onProgress(final double totalProgress, final String totalMsg, final double currentProgress, final String currentMsg) {
 
-		int currValue = (int) (p * 100) ;
-		if (progressBar.isIndeterminate())
-			progressBar.setIndeterminate(false) ;
-		progressBar.setValue(currValue);
-		progressLabel.setText(msg); 
-		
-		if (progressBar.getValue() == progressBar.getMaximum())
-			progressBar.setIndeterminate(true) ;
+		progressPanel.setProgress(totalProgress, totalMsg, currentProgress, currentMsg);
 	}
 	
 

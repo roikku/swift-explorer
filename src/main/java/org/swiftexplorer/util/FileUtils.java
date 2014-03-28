@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileVisitResult;
@@ -130,6 +131,90 @@ public class FileUtils {
             return CONTINUE;
 		}
 		*/
+	}
+	
+	
+    public static class InputStreamProgressFilter extends FilterInputStream
+    {
+    	public static interface StreamProgressCallback
+    	{
+    		public void onStreamProgress (double progress) ;
+    	}
+    	
+    	private final long size ;
+    	private volatile long read = 0 ;
+    	private final StreamProgressCallback callback ;
+    	
+		protected InputStreamProgressFilter(InputStream in, long size, StreamProgressCallback callback) {
+
+			super(in);
+			if (size < 0)
+				throw new AssertionError ("The size of the stream to minitored must be positive") ;
+			
+			// Not we need the size because, in.available() does not necessarily return the size (see specs).
+			this.size = size ;
+			this.callback = callback ;
+		}
+    	
+		private double getProgress ()
+		{
+			if (size == 0)
+				return 1.0 ;
+			return read / (double)size ;
+		}
+		
+		private void checkProgress ()
+		{
+			if (callback == null)
+				return ;
+			callback.onStreamProgress(getProgress());
+		}
+
+		@Override
+		public int read() throws IOException {
+			int r = super.read();
+			read += r ;
+			checkProgress () ;
+			return r;
+		}
+
+		@Override
+		public int read(byte[] b) throws IOException {
+			int r = super.read(b);
+			read += r ;
+			checkProgress () ;
+			return r;
+		}
+
+		@Override
+		public int read(byte[] b, int off, int len) throws IOException {
+			int r = super.read(b, off, len);
+			read += r ;
+			checkProgress () ;
+			return r;
+		}
+
+		@Override
+		public long skip(long n) throws IOException {
+			long r = super.skip(n);
+			read += r ;
+			checkProgress () ;
+			return r;
+		}
+    }
+    
+    
+	public static InputStream getInputStreamWithProgressFilter(InputStreamProgressFilter.StreamProgressCallback callback, long size, Path path) throws FileNotFoundException 
+	{
+		return getInputStreamWithProgressFilter (callback, size, new FileInputStream(path.toFile())) ;
+	}
+	
+	
+	public static InputStream getInputStreamWithProgressFilter(InputStreamProgressFilter.StreamProgressCallback callback, long size, InputStream input)
+	{
+		InputStream in = new BufferedInputStream(
+				new InputStreamProgressFilter(input, size, callback));
+		return in;
 	}
 	
 	
