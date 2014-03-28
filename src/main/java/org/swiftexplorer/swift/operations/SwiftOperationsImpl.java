@@ -741,7 +741,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
 		int currentUplodedFilesCount = 0 ;
 		int totalFiles = listObj.size() ;
-		ProgressInformation progInfo = new ProgressInformation (callback, true) ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
         for (StoredObject so : listObj) 
         {
@@ -750,12 +750,15 @@ public class SwiftOperationsImpl implements SwiftOperations {
         	if (so == null)
         		continue ;
         	
-        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
-        	
         	// defensive check, it should not be necessary, provided that
         	// the prefix was given to eagerFetchStoredObjects 
         	if (!so.getName().startsWith(storedObject.getName()))
         		continue ;
+        	
+        	progInfo.setCurrentMessage(String.format ("Deleting %s", so.getName())) ;
+        	progInfo.setCurrentProgress(1) ;
+        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
+
         	deleteStoredObjects (container, Arrays.asList(so), callback) ;
         }
         logger.info("Deleted directory '{}'", storedObject.getName());

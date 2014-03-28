@@ -106,8 +106,6 @@ public class ProgressPanel extends JPanel {
 		int pbVal = Math.min((int) (value * 100), 100) ;
 		if (pb.isIndeterminate())
 			pb.setIndeterminate(false) ;
-		if (pb.getValue() == pbVal)
-			return ;
 		pb.setValue(pbVal);
 		lbl.setText(msg); 
 	}

@@ -149,11 +149,12 @@ public class FileUtils {
 
 			super(in);
 			if (size < 0)
-				throw new AssertionError ("The size of the stream to minitored must be positive") ;
+				throw new AssertionError ("The size of the stream to be minitored must be positive") ;
 			
 			// Not we need the size because, in.available() does not necessarily return the size (see specs).
 			this.size = size ;
 			this.callback = callback ;
+			checkProgress () ;
 		}
     	
 		private double getProgress ()
