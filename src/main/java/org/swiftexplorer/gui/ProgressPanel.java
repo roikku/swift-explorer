@@ -15,6 +15,7 @@
 package org.swiftexplorer.gui;
 
 import java.awt.Dimension;
+import java.awt.FontMetrics;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -95,7 +96,36 @@ public class ProgressPanel extends JPanel {
     public void setProgress (double totalProgress, String totalMsg, double currentProgress, String currentMsg)
     {
 		setProgressValues (progressBarTotal, progressLabelTotal, totalProgress, totalMsg) ;
-		setProgressValues (progressBarCurrent, progressLabelCurrent, currentProgress, currentMsg) ;
+		setProgressValues (progressBarCurrent, progressLabelCurrent, currentProgress, processTextToFit (progressLabelCurrent, currentMsg)) ;
+    }
+    
+    
+    private String processTextToFit (JLabel lbl, String text)
+    {
+    	if (text == null)
+    		return "" ;
+    	FontMetrics fm = lbl.getFontMetrics(lbl.getFont());
+    	if (fm == null)
+    		return text ;
+    	int textWidth = fm.stringWidth(text);
+    	int lblWidth = lbl.getWidth() ;
+    	if (lblWidth >= textWidth)
+    		return text ;
+    	
+    	// we assume that the set of all characters have a mean length equal or smaller than 'Aa' / 2
+    	String dots = " ... " ;
+    	int charWidth = fm.stringWidth("Aa") / 2;
+    	int dotsWidth = fm.stringWidth(dots);
+    	int maxNumChar = (lblWidth - dotsWidth) / charWidth ;
+    	int blockWidth = maxNumChar / 2 ;
+    	if (blockWidth <= 0)
+    		return text ; 
+    	
+    	StringBuilder sb = new StringBuilder () ;
+    	sb.append(text.substring(0, blockWidth)) ;
+    	sb.append(dots) ;
+    	sb.append(text.substring(text.length() - blockWidth)) ;
+    	return sb.toString() ;
     }
     
     
@@ -107,6 +137,6 @@ public class ProgressPanel extends JPanel {
 		if (pb.isIndeterminate())
 			pb.setIndeterminate(false) ;
 		pb.setValue(pbVal);
-		lbl.setText(msg); 
+		lbl.setText((msg == null)?(""):(msg)); 
 	}
 }

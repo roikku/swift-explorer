@@ -379,18 +379,6 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         progressButton.setAction(progressButtonAction) ;
         progressButton.setEnabled(false);
         progressButton.setToolTipText(getLocalizedString("Show_Progress"));
-
-        /*
-        progressBarTotal.setStringPainted(true);
-        progressLabelTotal.setMinimumSize(new Dimension (200, 10)) ;
-        progressLabelTotal.setPreferredSize(new Dimension (400, 30)) ;
-        progressLabelTotal.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
-        
-        progressBarCurrent.setStringPainted(true);
-        progressLabelCurrent.setMinimumSize(new Dimension (200, 10)) ;
-        progressLabelCurrent.setPreferredSize(new Dimension (400, 30)) ;
-        progressLabelCurrent.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
-        */
         
         //
         createLists();
@@ -748,7 +736,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         containerDeleteAction.setEnabled(containerSelected && !isBusy);
         containerPurgeAction.setEnabled(containerSelected  && !isBusy);
         containerEmptyAction.setEnabled(containerSelected  && !isBusy);
-        containerViewMetaData.setEnabled(containerSelected && selected.isInfoRetrieved() && !selected.getMetadata().isEmpty());
+        containerViewMetaData.setEnabled(containerSelected && selected.isInfoRetrieved() && !selected.getMetadata().isEmpty()  && !isBusy);
         containerGetInfoAction.setEnabled(containerSelected);
     }
 
@@ -763,11 +751,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         boolean isBusy = busyCnt.get() > 0 ;
         boolean isSelectedDir = SwiftUtils.isDirectory(selected) ;
         
-        storedObjectPreviewAction.setEnabled(singleObjectSelected && selected.isInfoRetrieved());
+        storedObjectPreviewAction.setEnabled(singleObjectSelected && selected.isInfoRetrieved()  && !isBusy);
 
         storedObjectUploadFilesAction.setEnabled(containerSelected && (singleObjectSelected || !objectsSelected) && !isBusy);
         storedObjectDownloadFilesAction.setEnabled(containerSelected && objectsSelected && !isBusy && !isSelectedDir);
-        storedObjectViewMetaData.setEnabled(containerSelected && singleObjectSelected && selected.isInfoRetrieved() && !selected.getMetadata().isEmpty());
+        storedObjectViewMetaData.setEnabled(containerSelected && singleObjectSelected && selected.isInfoRetrieved() && !selected.getMetadata().isEmpty()  && !isBusy);
         
         storedObjectOpenAction.setEnabled(objectsSelected && containerSelected && selectedContainer.isPublic() && !isBusy);
         storedObjectDeleteFilesAction.setEnabled(containerSelected && objectsSelected && !isBusy && !isSelectedDir);
