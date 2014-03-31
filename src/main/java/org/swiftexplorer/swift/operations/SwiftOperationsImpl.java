@@ -70,9 +70,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
     private volatile Account account = null;
     
-    // TODO: temporary. For experimentation
-    private final boolean experimentInputStreamProgressMonitor = true ;
-    
     private volatile boolean useCustomSegmentation = false ;
     private volatile long segmentationSize = 104857600 ; // 100MB
 
@@ -398,16 +395,11 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	if (storedObject == null || target == null)
     		return ;
     	try
-    	{
-	    	if (!experimentInputStreamProgressMonitor)
-	    		storedObject.downloadObject(target);
-	    	else
-	    	{	    		    		
-	    		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
-	    		InputStream in = FileUtils.getInputStreamWithProgressFilter(progInfo, storedObject.getContentLength(), storedObject.downloadObjectAsInputStream()) ;	    		
+    	{    		    		
+    		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
+    		InputStream in = FileUtils.getInputStreamWithProgressFilter(progInfo, storedObject.getContentLength(), storedObject.downloadObjectAsInputStream()) ;	    		
 
-	    		FileUtils.saveInputStreamInFile (in, target, true) ;
-	    	}
+    		FileUtils.saveInputStreamInFile (in, target, true) ;
     	}
 	    catch (OutOfMemoryError ome)
 	    {
@@ -423,28 +415,12 @@ public class SwiftOperationsImpl implements SwiftOperations {
     		return ;
     	try
     	{
+    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
+    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
 	    	if (useCustomSegmentation)	
-	    	{
-		    	if (!experimentInputStreamProgressMonitor)
-		    		storedObject.uploadObject(new UploadInstructions (file).setSegmentationSize(segmentationSize));
-		    	else
-		    	{	   		
-		    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
-		    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
-		    		storedObject.uploadObject(new UploadInstructions (FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))).setSegmentationSize(segmentationSize)) ;
-		    	}
-	    	}
-	    	else
-	    	{
-		    	if (!experimentInputStreamProgressMonitor)
-		    		storedObject.uploadObject(file);
-		    	else
-		    	{	   		
-		    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
-		    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
-		    		storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
-		    	}
-	    	}
+		    	storedObject.uploadObject(new UploadInstructions (FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))).setSegmentationSize(segmentationSize)) ;
+	    	else		
+		    	storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
     	}
 	    catch (OutOfMemoryError ome)
 	    {

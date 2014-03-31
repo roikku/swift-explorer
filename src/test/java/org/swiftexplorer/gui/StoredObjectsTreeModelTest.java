@@ -263,4 +263,13 @@ public class StoredObjectsTreeModelTest {
     	StoredObjectsTreeModel treeModel = new StoredObjectsTreeModel (null, storedObjectList) ;
     	assertTrue(((TreeNode)treeModel.getRoot()).getNodeName().isEmpty());
     }
+    
+    
+    @Test
+    public void shouldCreateWithNullRootNullListTreeModel() 
+    {
+    	StoredObjectsTreeModel treeModel = new StoredObjectsTreeModel (null, null) ;
+    	assertTrue(((TreeNode)treeModel.getRoot()).getNodeName().isEmpty());
+    	assertTrue(treeModel.isLeaf(treeModel.getRoot())) ;
+    }
 }

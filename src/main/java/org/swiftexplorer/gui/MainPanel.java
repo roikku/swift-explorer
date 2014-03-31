@@ -627,7 +627,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     {
     	Container selectedContainer = getSelectedContainer() ;
     	if (selectedContainer == null)
+    	{
+	        tree.setRootVisible(false) ;
+	        tree.setModel(new StoredObjectsTreeModel (null, null)) ;
     		return ;
+    	}
     	
     	final List<StoredObject> storedObjectsList ;
     	String filter = searchTextField.getText();
@@ -645,8 +649,6 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	    	else
 	    		storedObjectsList = allStoredObjects ;
 	    	
-	        //StoredObjectsTreeModel nm = new StoredObjectsTreeModel (storedObjectsList) ;
-	        //nm.setRootContainer(getSelectedContainer());
 	        StoredObjectsTreeModel nm = new StoredObjectsTreeModel (selectedContainer, storedObjectsList) ;
 	        tree.setRootVisible(!allStoredObjects.isEmpty()) ;
 	        tree.setModel(nm) ;
@@ -664,7 +666,6 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     		return ;
     	((StoredObjectsTreeModel)tm).addAll(list) ;
     	tree.setRootVisible(!allStoredObjects.isEmpty()) ;
-    	//tree.updateUI() ;
     }
 
     

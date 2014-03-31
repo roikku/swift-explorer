@@ -27,8 +27,9 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 	private volatile XMLConfiguration config = null ;
 	final private String baseProperty ;
 	
-	private volatile long segmentationSize = 104857600 ; //UploadInstructions.MAX_SEGMENTATION_SIZE ;
-
+	private final long defaultSegmentationSize = 104857600 ; //UploadInstructions.MAX_SEGMENTATION_SIZE ;
+	private volatile long segmentationSize = defaultSegmentationSize ; 
+	
 	public SwiftSettingsImpl (String baseProperty)
 	{
 		super () ;
@@ -46,7 +47,7 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 		// TODO: when the commom-configuration 2.0 will be released
 		// Lock config
 		// ...
-		segmentationSize = Math.min(this.config.getLong(baseProperty + ".segmentationSize", UploadInstructions.MAX_SEGMENTATION_SIZE), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
+		segmentationSize = Math.min(this.config.getLong(baseProperty + ".segmentationSize", defaultSegmentationSize), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
 	}
 	
 	
