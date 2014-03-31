@@ -17,11 +17,11 @@ package org.swiftexplorer.config;
 import org.apache.commons.configuration.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.swiftexplorer.config.Configuration;
 import org.swiftexplorer.config.auth.HasAuthenticationSettings;
 import org.swiftexplorer.config.localization.HasLocalizationSettings;
 import org.swiftexplorer.config.proxy.HasProxySettings;
+import org.swiftexplorer.config.swift.HasSwiftSettings;
 
 public class ConfigTest {
 
@@ -124,6 +124,15 @@ public class ConfigTest {
 			logger.debug ("Region: " + localizationSettings.getRegion().toString()) ;
 		}
 		
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		if (50000000 != swiftSettings.getSegmentationSize())
+			return false ;
+		
+		if (printout)
+		{
+			logger.debug ("Segmentation Size: " + swiftSettings.getSegmentationSize()) ;
+		}
+			
 		return true ;
 	}
 }

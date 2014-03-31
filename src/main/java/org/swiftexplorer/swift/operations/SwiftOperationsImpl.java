@@ -72,7 +72,11 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
     // TODO: temporary. For experimentation
     private final boolean experimentInputStreamProgressMonitor = true ;
+    
+    private volatile boolean useCustomSegmentation = false ;
+    private volatile long segmentationSize = 104857600 ; // 100MB
 
+    
     public SwiftOperationsImpl() {
     	super () ;
     }
@@ -83,6 +87,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	return account ;
     }
     
+    
     private void CheckAccount ()
     {
     	if (account == null)
@@ -90,6 +95,9 @@ public class SwiftOperationsImpl implements SwiftOperations {
     }
     
     
+    /**
+     * {@inheritDoc}.
+     */
 	@Override
 	public synchronized void login(AccountConfig accConf, SwiftAccess swiftAccess, SwiftCallback callback) {
 
@@ -109,6 +117,32 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
+    }
+    
+    
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public synchronized void login(AccountConfig accConf, long segmentationSize, SwiftAccess swiftAccess, SwiftCallback callback) {
+
+    	this.login(accConf, swiftAccess, callback);
+    	
+    	this.segmentationSize = segmentationSize ;
+    	useCustomSegmentation = true ;
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+    @Override
+    public synchronized void login(AccountConfig accConf, long segmentationSize, String url, String tenant, String user, String pass, SwiftCallback callback) {
+
+    	this.login(accConf, url, tenant, user, pass, callback);
+        
+    	this.segmentationSize = segmentationSize ;
+    	useCustomSegmentation = true ;
     }
 
 
@@ -235,17 +269,27 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
     /**
      * {@inheritDoc}.
+     * @throws IOException 
      */
     @Override
-    public synchronized void createStoredObjects(Container container, File[] selectedFiles, SwiftCallback callback) {
+    public synchronized void createStoredObjects(Container container, File[] selectedFiles, SwiftCallback callback) throws IOException {
     	
     	CheckAccount () ;
     	
+		int totalFiles = selectedFiles.length ;
+		int currentUplodedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
         for (File selected : selectedFiles) {
+        	
+        	++currentUplodedFilesCount ;
+        	
             if (selected.isFile() && selected.exists()) {
             	                
+				totalProgress (currentUplodedFilesCount, totalFiles, Paths.get(selected.getPath()), progInfo, true) ;
+
                 StoredObject obj = container.getObject(selected.getName());
-                obj.uploadObject(selected);
+                uploadObject(obj, selected, progInfo, callback) ;
             }
         }
         reloadContainer(container, callback);
@@ -291,7 +335,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     public synchronized void downloadStoredObject(Container container, StoredObject storedObject, File target, SwiftCallback callback) throws IOException {
         
     	CheckAccount () ;
-    	
+    	    	
     	// First, we check whether we want to download a full directory (i.e., "recursively")
     	if (SwiftUtils.isDirectory(storedObject) && target.isDirectory())
     	{
@@ -379,13 +423,27 @@ public class SwiftOperationsImpl implements SwiftOperations {
     		return ;
     	try
     	{
-	    	if (!experimentInputStreamProgressMonitor)
-	    		storedObject.uploadObject(file);
+	    	if (useCustomSegmentation)	
+	    	{
+		    	if (!experimentInputStreamProgressMonitor)
+		    		storedObject.uploadObject(new UploadInstructions (file).setSegmentationSize(segmentationSize));
+		    	else
+		    	{	   		
+		    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
+		    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
+		    		storedObject.uploadObject(new UploadInstructions (FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))).setSegmentationSize(segmentationSize)) ;
+		    	}
+	    	}
 	    	else
-	    	{	    		
-	    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
-	    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
-	    		storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
+	    	{
+		    	if (!experimentInputStreamProgressMonitor)
+		    		storedObject.uploadObject(file);
+		    	else
+		    	{	   		
+		    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
+		    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
+		    		storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
+		    	}
 	    	}
     	}
 	    catch (OutOfMemoryError ome)
@@ -653,7 +711,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * @throws IOException 
      */
 	@Override
-	public void uploadFiles(Container container, StoredObject parentObject, File[] files, boolean overwriteAll, SwiftCallback callback) throws IOException 
+	public synchronized void uploadFiles(Container container, StoredObject parentObject, File[] files, boolean overwriteAll, SwiftCallback callback) throws IOException 
 	{	
 		CheckAccount () ;
     	
@@ -698,7 +756,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * @throws IOException 
      */
 	@Override
-	public void createDirectory(Container container, StoredObject parentObject, String directoryName, SwiftCallback callback)
+	public synchronized void createDirectory(Container container, StoredObject parentObject, String directoryName, SwiftCallback callback)
 	{
 		CheckAccount () ;
     	
@@ -730,7 +788,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
 
 	@Override
-	public void deleteDirectory(Container container, StoredObject storedObject, SwiftCallback callback) {
+	public synchronized void deleteDirectory(Container container, StoredObject storedObject, SwiftCallback callback) {
 		
 		CheckAccount () ;
     	

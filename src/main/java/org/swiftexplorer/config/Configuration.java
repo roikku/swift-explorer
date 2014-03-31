@@ -23,6 +23,9 @@ import org.swiftexplorer.config.localization.LocalizationSettingsImpl;
 import org.swiftexplorer.config.proxy.HasProxySettings;
 import org.swiftexplorer.config.proxy.Proxy;
 import org.swiftexplorer.config.proxy.ProxySettingsImpl;
+import org.swiftexplorer.config.swift.HasSwiftSettings;
+import org.swiftexplorer.config.swift.SwiftParameters;
+import org.swiftexplorer.config.swift.SwiftSettingsImpl;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,7 +46,7 @@ public enum Configuration implements HasConfiguration {
 	private final String defaultXmlPath ; 
 	
 	private final String appName = "Swift Explorer" ;
-	private final String appVersion = "1.0.0" ;
+	private final String appVersion = "1.0.1" ;
 	
 	@Override
 	public String getAppName ()
@@ -82,6 +85,8 @@ public enum Configuration implements HasConfiguration {
 	
 	private final LocalizationSettingsImpl localizationSettings = new LocalizationSettingsImpl ("localization") ;
 	
+	private final SwiftSettingsImpl swiftSettings = new SwiftSettingsImpl ("swift") ;
+	
 	public void load (String xmlPath) throws ConfigurationException
 	{
 		String settingFilePath = (xmlPath == null || xmlPath.isEmpty()) ? (defaultXmlPath) : (xmlPath) ;
@@ -107,6 +112,7 @@ public enum Configuration implements HasConfiguration {
 		httpsProxySettings.setConfig(config);
 		authenticationSettings.setConfig(config);
 		localizationSettings.setConfig(config);
+		swiftSettings.setConfig(config);
 		
 		setProxy () ;
 	}	
@@ -141,11 +147,13 @@ public enum Configuration implements HasConfiguration {
 		return localizationSettings ;
 	}
 	
+	
 	@Override
 	public HasProxySettings getHttpProxySettings ()
 	{
 		return httpProxySettings ;
 	}
+	
 	
 	@Override
 	public HasProxySettings getHttpsProxySettings ()
@@ -153,11 +161,20 @@ public enum Configuration implements HasConfiguration {
 		return httpsProxySettings ;
 	}
 	
+	
 	@Override
 	public HasAuthenticationSettings getAuthenticationSettings ()
 	{
 		return authenticationSettings ;
 	}
+	
+	
+	@Override
+	public HasSwiftSettings getSwiftSettings() 
+	{
+		return swiftSettings;
+	}
+	
 	
 	@Override
 	public void updateProxy(Proxy newProxy) {
@@ -185,6 +202,7 @@ public enum Configuration implements HasConfiguration {
 		}
 	}
 	
+	
 	@Override
 	public void updateLanguage(LanguageCode language, RegionCode region) 
 	{	
@@ -198,6 +216,21 @@ public enum Configuration implements HasConfiguration {
 			logger.error("Error occurred while updating the language settings", e);
 		}
 	}
+	
+	
+	@Override
+	public void updateSwiftParameters(SwiftParameters newParameters) 
+	{
+		try 
+		{
+			swiftSettings.update(newParameters);
+		} 
+		catch (ConfigurationException e) 
+		{
+			logger.error("Error occurred while updating the Swift settings", e);
+		}
+	}
+	
 	
 	private void setProxySystemProperty (HasProxySettings proxySettings, String prot)
 	{

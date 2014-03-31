@@ -45,6 +45,7 @@ import org.swiftexplorer.config.HasConfiguration;
 import org.swiftexplorer.config.localization.HasLocalizationSettings.LanguageCode;
 import org.swiftexplorer.config.localization.HasLocalizationSettings.RegionCode;
 import org.swiftexplorer.config.proxy.Proxy;
+import org.swiftexplorer.config.swift.SwiftParameters;
 import org.swiftexplorer.gui.localization.HasLocalizedStrings;
 import org.swiftexplorer.gui.login.CloudieCallbackWrapper;
 import org.swiftexplorer.gui.login.CredentialsStore;
@@ -57,6 +58,7 @@ import org.swiftexplorer.gui.settings.PreferencesPanel.PreferencesCallback;
 import org.swiftexplorer.gui.settings.ProxiesStore;
 import org.swiftexplorer.gui.settings.ProxyPanel;
 import org.swiftexplorer.gui.settings.ProxyPanel.ProxyCallback;
+import org.swiftexplorer.gui.settings.SwiftPanel;
 import org.swiftexplorer.gui.util.AsyncWrapper;
 import org.swiftexplorer.gui.util.DoubleClickListener;
 import org.swiftexplorer.gui.util.FileTypeIconFactory;
@@ -218,6 +220,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     private Action settingProxyAction = null ;
     private Action settingPreferencesAction = null ;
+    private Action settingSwiftAction = null ;
 
     private Action aboutAction = null ;
     private Action jvmInfoAction = null ;
@@ -244,6 +247,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final boolean nativeMacOsX = SwiftExplorer.isMacOsX() ; 
     
     private final boolean createDefaultContainerInMockMode = true ;
+    private final boolean allowCustomeSegmentationSize = true ;
     
 
     /**
@@ -475,6 +479,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         settingProxyAction = new ReflectionAction<MainPanel>(getLocalizedString("Proxy"), getIcon("server_link.png"), this, "onProxy");
         settingPreferencesAction = new ReflectionAction<MainPanel>(getLocalizedString("Preferences"), getIcon("wrench.png"), this, "onPreferences");
+        settingSwiftAction = new ReflectionAction<MainPanel>(getLocalizedString("Swift_Parameters"), getIcon("mixer.png"), this, "onSwiftParameters");
+        
         
         aboutAction = new ReflectionAction<MainPanel>(getLocalizedString("About"), getIcon("logo_16.png"), this, "onAbout");
         
@@ -713,6 +719,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         enableDisableAccountMenu();
         enableDisableContainerMenu();
         enableDisableStoredObjectMenu();
+        enableSettingMenu() ;
     }
 
     
@@ -722,6 +729,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         accountSimulatorLoginAction.setEnabled(!loggedIn);
         accountLogoutAction.setEnabled(loggedIn);
         accountQuitAction.setEnabled(true);
+    }
+    
+    
+    public void enableSettingMenu() {
+    	settingSwiftAction.setEnabled(!loggedIn);
     }
 
     
@@ -843,8 +855,10 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 											getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
 								}
 							});
-
-					ops.login(AccountConfigFactory.getHubicAccountConfig(), sa, cb);
+					if (allowCustomeSegmentationSize)
+						ops.login(AccountConfigFactory.getHubicAccountConfig(), config.getSwiftSettings().getSegmentationSize(), sa, cb);
+					else
+						ops.login(AccountConfigFactory.getHubicAccountConfig(), sa, cb);
 				}
 				enableDisable();
 				if (owner != null)
@@ -872,8 +886,10 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
                         JOptionPane.showMessageDialog(loginDialog,  getLocalizedString("Login_Failed") + "\n" + ex.toString(), getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
-            	
-                ops.login(AccountConfigFactory.getKeystoneAccountConfig(), authUrl, tenant, username, new String(pass), cb);
+            	if (allowCustomeSegmentationSize)
+            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), config.getSwiftSettings().getSegmentationSize(), authUrl, tenant, username, new String(pass), cb);
+            	else
+            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), authUrl, tenant, username, new String(pass), cb);
             }
         }, credentialsStore, stringsBundle);
         try {
@@ -919,7 +935,12 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         });
     	
     	if (confirm (getLocalizedString("confirm_connection_to_simulator")))
-    		ops.login(AccountConfigFactory.getMockAccountConfig(), "http://localhost:8080/", "user", "pass", "secret", cb);
+    	{
+    		if (allowCustomeSegmentationSize)
+    			ops.login(AccountConfigFactory.getMockAccountConfig(), config.getSwiftSettings().getSegmentationSize(), "http://localhost:8080/", "user", "pass", "secret", cb);
+    		else
+    			ops.login(AccountConfigFactory.getMockAccountConfig(), "http://localhost:8080/", "user", "pass", "secret", cb);
+    	}
     }
     
     
@@ -972,6 +993,10 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     public void onLogout() {
         ops.logout(callback);
+
+        storedObjects.clear();
+        allStoredObjects.clear();
+        buildTree () ;
     }
     
 
@@ -1031,6 +1056,51 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             prefDialog.setVisible(true);
         } finally {
         	prefDialog.dispose();
+        }
+    }
+    
+    
+    public void onSwiftParameters ()
+    {
+        final JDialog swiftParamDialog = new JDialog(owner, getLocalizedString("Swift_Parameters"));
+        final SwiftPanel swiftPanel = new SwiftPanel(new SwiftPanel.SwiftSettingsCallback() {
+
+			@Override
+			public void setSwiftParameters(SwiftParameters newParameters) {
+
+				if (config == null)
+					return ;
+				if (newParameters == null)
+					return ;
+				
+				// set the new swift settings
+				config.updateSwiftParameters(newParameters);
+				swiftParamDialog.setVisible(false);
+			}
+
+        }, config.getSwiftSettings(), stringsBundle);
+        try {
+        	swiftPanel.setOwner(swiftParamDialog);
+        	swiftParamDialog.getContentPane().add(swiftPanel);
+        	swiftParamDialog.setModal(true);
+        	swiftParamDialog.setResizable(false);
+        	swiftParamDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+        	swiftParamDialog.pack();
+            center(swiftParamDialog);
+            swiftParamDialog.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                	swiftPanel.onCancel();
+                }
+
+                @Override
+                public void windowOpened(WindowEvent e) {
+                	swiftPanel.onShow();
+                }
+            });
+            swiftParamDialog.setVisible(true);
+        } finally {
+        	swiftParamDialog.dispose();
         }
     }
     
@@ -1249,6 +1319,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         //
         settingsMenu.add(new JMenuItem(settingProxyAction)) ;
+        if (allowCustomeSegmentationSize)
+        	settingsMenu.add(new JMenuItem(settingSwiftAction)) ;
         if (!nativeMacOsX) 
         {
 	        settingsMenu.addSeparator();

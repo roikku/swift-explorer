@@ -151,6 +151,29 @@ public interface SwiftOperations {
      */
     void login(AccountConfig accConf, SwiftAccess swiftAccess, SwiftCallback callback);
     
+    
+    /**
+     * performs a login.
+     * @param accConf.
+     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120). 
+     * @param url the url to login against.
+     * @param tenant the tenant.
+     * @param user the username.
+     * @param pass the password.
+     * @param callback the callback.
+     */
+    void login(AccountConfig accConf, long segmentationSize, String url, String tenant, String user, String pass, SwiftCallback callback);
+
+    
+    /**
+     * performs a login.
+     * @param accConf.
+     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120).
+     * @param swiftAccess.
+     * @param callback the callback.
+     */
+    void login(AccountConfig accConf, long segmentationSize, SwiftAccess swiftAccess, SwiftCallback callback);
+    
 
     /**
      * logout from the current session
@@ -170,8 +193,9 @@ public interface SwiftOperations {
      * @param container the container to store in.
      * @param file the file(s) to upload.
      * @param callback the callback to call when done.
+     * @throws IOException 
      */
-    void createStoredObjects(Container container, File[] file, SwiftCallback callback);
+    void createStoredObjects(Container container, File[] file, SwiftCallback callback) throws IOException;
 
     /**
      * deletes a container and all files in it.

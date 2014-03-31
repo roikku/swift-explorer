@@ -9,7 +9,9 @@
 	the specific language governing permissions and limitations under the License. -->
 
 <settings>
-
+	<swift>
+		<segmentationSize>50000000</segmentationSize>
+	</swift>
 	<proxy>
 		<http>
 			<active>false</active>

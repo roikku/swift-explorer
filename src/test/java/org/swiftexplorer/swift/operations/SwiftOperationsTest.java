@@ -33,6 +33,9 @@ package org.swiftexplorer.swift.operations;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 
@@ -52,6 +55,8 @@ import org.mockito.Mockito;
 
 public class SwiftOperationsTest {
 
+	final Logger logger = LoggerFactory.getLogger(SwiftOperationsTest.class);
+	
     private SwiftOperations ops;
     private SwiftCallback callback;
     private Account account;
@@ -127,7 +132,15 @@ public class SwiftOperationsTest {
 
     @Test
     public void shouldCreateStoredObject() {
-        ops.createStoredObjects(account.getContainer("x").create(), new File[] { new File("pom.xml") }, callback);
+    	try
+    	{	
+    		ops.createStoredObjects(account.getContainer("x").create(), new File[] { new File("pom.xml") }, callback);
+		}
+		catch (IOException e)
+		{
+			logger.error("Error occurred while creating stored object", e) ;
+		}
+    
         Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
         Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.eq(0),
                 Mockito.anyListOf(StoredObject.class));

@@ -31,11 +31,15 @@
 
 package org.swiftexplorer.swift.operations;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.swiftexplorer.gui.util.AsyncWrapper;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 
 import java.io.File;
+import java.io.IOException;
+
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.model.Account;
@@ -45,6 +49,8 @@ import org.mockito.Mockito;
 
 public class SwiftOperationsAsyncTest {
 
+	final Logger logger = LoggerFactory.getLogger(SwiftOperationsAsyncTest.class);
+	
     private SwiftOperations ops;
     private SwiftCallback callback;
     private Account account;
@@ -70,10 +76,17 @@ public class SwiftOperationsAsyncTest {
     
     @Test
     public void shouldSignalCommandException() throws InterruptedException {
-        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, callback); // container
-                                                                                                          // does
-                                                                                                          // not
-                                                                                                          // exist.
+    	try
+    	{
+	        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, callback); // container
+	                                                                                                          // does
+	                                                                                                          // not
+	                                                                                                          // exist.
+    	}
+    	catch (IOException e)
+    	{
+    		logger.error("Error occurred while creating stored object", e) ;
+    	}
         
         Thread.sleep(500L);
         Mockito.verify(callback, Mockito.atLeastOnce()).onStart();

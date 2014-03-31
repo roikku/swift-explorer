@@ -21,6 +21,8 @@ import org.swiftexplorer.config.localization.HasLocalizationSettings.LanguageCod
 import org.swiftexplorer.config.localization.HasLocalizationSettings.RegionCode;
 import org.swiftexplorer.config.proxy.HasProxySettings;
 import org.swiftexplorer.config.proxy.Proxy;
+import org.swiftexplorer.config.swift.HasSwiftSettings;
+import org.swiftexplorer.config.swift.SwiftParameters;
 
 public interface HasConfiguration {
 	public String getAppName () ;
@@ -29,6 +31,8 @@ public interface HasConfiguration {
 	public HasProxySettings getHttpsProxySettings () ;
 	public HasAuthenticationSettings getAuthenticationSettings () ;
 	public HasLocalizationSettings getLocalizationSettings () ;
+	public HasSwiftSettings getSwiftSettings () ;
 	public void updateProxy (Proxy newProxy) ;
 	public void updateLanguage (LanguageCode language, RegionCode region) ;
+	public void updateSwiftParameters (SwiftParameters newParameters) ;
 }
