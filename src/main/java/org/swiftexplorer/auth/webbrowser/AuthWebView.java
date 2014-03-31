@@ -51,17 +51,6 @@ public class AuthWebView  {
 	}
 	
 	
-	 /*
-	public AuthWebView setSynchronousDataProvider (SynchronousDataProvider<?> syncDataProvider)
-	{
-        synchronized (lock)
-        {
-        	this.syncDataProvider = syncDataProvider ;	
-        }
-        return this ;
-	}*/
-	
-	
 	private void start(final String url) 
 	{    	
 	    SwingUtilities.invokeLater(new Runnable() 
@@ -105,8 +94,6 @@ public class AuthWebView  {
 	                	
 	                    synchronized (lock)
 	    	            {
-	                    	cleanCurrentBrowser () ;
-	    	            	
 	    	                 // here, we should notify the server
 		                    if (syncDataProvider != null)
 		                    {
@@ -119,6 +106,7 @@ public class AuthWebView  {
 		                    		logger.error("Error occurred while stopping the wait of the data provider", e);
 								} 
 		                    }
+		                    cleanCurrentBrowser () ;
 	    	            }
 	                }
 	            });
@@ -137,8 +125,8 @@ public class AuthWebView  {
 	{
     	if (currBrowser != null)
     	{
-    		currBrowser.setVisible(false);
-    		currBrowser.dispose();
+	    	currBrowser.setVisible(false);
+	    	currBrowser.dispose();
     		currBrowser = null ;
     	}
 	}
@@ -156,6 +144,22 @@ public class AuthWebView  {
 	        		if (currBrowser == null)
 	        			return ;
 	        		currBrowser.setVisible(b);
+	        	}
+	        }
+	    });
+	}
+	
+	
+	public void dispose ()
+	{
+	    SwingUtilities.invokeLater(new Runnable() 
+	    {
+	        @Override
+	        public void run() 
+	        {
+	        	synchronized (lock)
+	        	{
+	        		cleanCurrentBrowser ();
 	        	}
 	        }
 	    });

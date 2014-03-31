@@ -239,4 +239,28 @@ public class StoredObjectsTreeModelTest {
     	// Still the tree should look good
     	verifyTreeStructure (treeModel) ;
     }
+    
+    
+    @Test
+    public void shouldCreateEmptyListTreeModel() {
+    	
+    	StoredObjectsTreeModel treeModel = new StoredObjectsTreeModel (rootContainer, new ArrayList<StoredObject> ()) ;
+    	assertTrue(treeModel.isLeaf(treeModel.getRoot())) ;
+    }
+    
+    
+    @Test
+    public void shouldCreateNullListTreeModel() {
+    	
+    	StoredObjectsTreeModel treeModel = new StoredObjectsTreeModel (rootContainer, null) ;
+    	assertTrue(treeModel.isLeaf(treeModel.getRoot())) ;
+    }
+    
+    
+    @Test
+    public void shouldCreateWithNullRoot() 
+    {
+    	StoredObjectsTreeModel treeModel = new StoredObjectsTreeModel (null, storedObjectList) ;
+    	assertTrue(((TreeNode)treeModel.getRoot()).getNodeName().isEmpty());
+    }
 }

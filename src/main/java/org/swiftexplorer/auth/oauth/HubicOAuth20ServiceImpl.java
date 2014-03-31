@@ -150,11 +150,16 @@ public class HubicOAuth20ServiceImpl implements OAuthService {
 			// the server is being started
 			params = httpServer.startAndWaitForData() ;
 			httpServer.stopServer();
-			authWebView.setVisible(false);
+			//authWebView.setVisible(false);
+			
 		} 
 		catch (IOException | InterruptedException e) 
 		{	
 			logger.error("Error occurred while obtaining the code verifier", e);
+		}
+		finally
+		{
+			authWebView.dispose();
 		}
 		if (params == null)
 			return null ;

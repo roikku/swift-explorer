@@ -403,7 +403,7 @@ public class StoredObjectsTreeModel implements TreeModel
 		if (!(node instanceof TreeNode))
 			return false ;
 		if (((TreeNode)node).isRoot())
-			return false ;
+			return mapParentChildMap.size() == 1 ;
 		if(!mapParentChildMap.containsKey((TreeNode)node))
 			return true ;
 		if (mapParentChildMap.get((TreeNode)node) == null)
