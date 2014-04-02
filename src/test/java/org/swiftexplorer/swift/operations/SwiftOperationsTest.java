@@ -38,9 +38,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
+import org.swiftexplorer.swift.util.SwiftUtils;
+import org.swiftexplorer.util.FileUtils;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -229,5 +233,198 @@ public class SwiftOperationsTest {
         Container create = account.getContainer("x").create();
         ops.refreshStoredObjects(create, callback);
         Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+    }
+    
+    
+    @Test(expected = AssertionError.class)
+    public void shouldNotEndWithSegments() {
+        ops.createContainer(new ContainerSpecification("name" + SwiftUtils.segmentsContainerPostfix, true), callback);
+    }
+    
+    
+    private SwiftOperations getCustomSegmentationSizeSwiftOperations (long segmentSize)
+    {
+    	SwiftOperations ops = new SwiftOperationsImpl();
+        ops.login(accConf, segmentSize, "http://localhost:8080/", "user", "pass", "secret", callback);
+        Mockito.verify(callback, Mockito.atLeastOnce()).onLoginSuccess();
+        return ops ;
+    }
+    
+    
+    private File getTestFile (String fileName, long fileSize) throws IOException
+    {
+        byte data [] = new byte[(int) fileSize] ;
+        for (int i = 0 ; i < fileSize ; ++i)
+        	data[i] = (byte)(Math.random() * 256) ;
+        File file = new File("./target/" + fileName);
+        
+    	// generate test file
+    	FileOutputStream out = new FileOutputStream(file);
+      	out.write(data);
+    	out.close();
+        
+        return file ;
+    }
+    
+    
+    private long getNumberOfSegments (long fileSize, long segmentSize)
+    {
+    	return fileSize / segmentSize + (long)((fileSize % segmentSize == 0)?(0):(1)) ;
+    }
+    
+    
+    @Test
+    public void shouldCreateSegments() {
+    	
+    	final long segmentSize = 800 ;
+    	final long fileSize = 8192 ;
+    	final String fileName = "segmentationTest.dat" ;
+    	
+		final long numSegments = getNumberOfSegments (fileSize, segmentSize) ;
+    	
+    	SwiftOperations ops = getCustomSegmentationSizeSwiftOperations (segmentSize) ;
+        Account acc = ((SwiftOperationsImpl)ops).getAccount() ;
+    	
+        Container container = acc.getContainer("x").create();
+        ops.refreshStoredObjects(container, callback);
+        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+        
+        File file = null ;
+        boolean exceptionThrown = false ;
+        try
+        {         
+        	file = getTestFile (fileName, fileSize) ;
+        	
+        	// upload it
+        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+  
+        	// verify that the segments container has been created 
+        	Container containerSegments = acc.getContainer(container.getName() + SwiftUtils.segmentsContainerPostfix);
+        	assertTrue (containerSegments.exists()) ;
+        	
+        	// verify the number of segments
+        	assertTrue (containerSegments.getCount() == numSegments) ;
+        	
+        	// check the object
+        	StoredObject object = container.getObject(fileName);
+        	assertTrue (object.exists()) ;
+        }
+        catch (IOException e) 
+        {
+        	exceptionThrown = true ;
+		}
+        finally
+        {
+        	if (file != null)
+        		file.delete();
+	        assertFalse(exceptionThrown);
+        }
+    }
+    
+    
+    @Test
+    public void shouldDownloadSegmentedObject() {
+    	
+    	final long segmentSize = 800 ;
+    	final long fileSize = 8192 ;
+    	final String fileName = "segmentationTest.dat" ;
+    	
+    	SwiftOperations ops = getCustomSegmentationSizeSwiftOperations (segmentSize) ;
+        Account acc = ((SwiftOperationsImpl)ops).getAccount() ;
+    	
+        Container container = acc.getContainer("x").create();
+        ops.refreshStoredObjects(container, callback);
+        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+
+        File file = null ;
+        File target = new File("./target/downloadTest.dat");
+        boolean exceptionThrown = false ;
+        try
+        {        
+        	// get test file
+        	file = getTestFile (fileName, fileSize) ;
+        	      
+        	// upload it
+        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+        	
+        	// check the object
+        	StoredObject object = container.getObject(fileName);
+        	assertTrue (object.exists()) ;
+
+        	// download object
+        	ops.downloadStoredObject(container, object, target, callback);
+        	assertTrue(target.exists());
+        	
+        	// verify that the files are identical
+        	assertTrue(FileUtils.getMD5(file).equals(FileUtils.getMD5(target))) ;
+        }
+        catch (IOException e) 
+        {
+        	exceptionThrown = true ;
+		}
+        finally
+        {
+        	if (file != null)
+        		file.delete();
+	        target.delete() ;
+	        assertFalse(exceptionThrown);
+        }	
+    }
+    
+    
+    @Test
+    public void shouldDeleteSegmentedObject() {
+    	
+    	final long segmentSize = 800 ;
+    	final long fileSize = 8192 ;
+    	final String fileName = "segmentationTest.dat" ;
+    	
+    	final long numSegments = getNumberOfSegments (fileSize, segmentSize) ;
+    	
+    	SwiftOperations ops = getCustomSegmentationSizeSwiftOperations (segmentSize) ;
+        Account acc = ((SwiftOperationsImpl)ops).getAccount() ;
+    	
+        Container container = acc.getContainer("x").create();
+        ops.refreshStoredObjects(container, callback);
+        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+
+        File file = null ;
+        boolean exceptionThrown = false ;
+        try
+        {        
+        	file = getTestFile (fileName, fileSize) ;
+        	
+        	// upload it
+        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+  
+        	// verify that the segments container has been created 
+        	Container containerSegments = acc.getContainer(container.getName() + SwiftUtils.segmentsContainerPostfix);
+        	assertTrue (containerSegments.exists()) ;
+        	
+        	// verify the number of segments
+        	assertTrue (containerSegments.getCount() == numSegments) ;
+        	
+        	// check the object
+        	StoredObject object = container.getObject(fileName);
+        	assertTrue (object.exists()) ;
+        	
+        	// delete the object
+        	ops.deleteStoredObjects(container, Arrays.asList(object), callback) ;
+        	Mockito.verify(callback, Mockito.times(1)).onStoredObjectDeleted(container, object);
+        	
+        	// verify the number of segments is now zero
+        	containerSegments.reload() ;
+        	assertTrue (containerSegments.getCount() == 0) ;
+        }
+        catch (IOException e) 
+        {
+        	exceptionThrown = true ;
+		}
+        finally
+        {
+        	if (file != null)
+        		file.delete();
+	        assertFalse(exceptionThrown);
+        }	
     }
 }

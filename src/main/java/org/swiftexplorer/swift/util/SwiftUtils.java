@@ -22,6 +22,7 @@ public class SwiftUtils {
 	
 	public static final String separator = "/" ; 
 	public static final String directoryContentType = "application/directory" ;
+	public static final String segmentsContainerPostfix = "_segments" ;
 	
 	public static boolean isDirectory (StoredObject so)
 	{

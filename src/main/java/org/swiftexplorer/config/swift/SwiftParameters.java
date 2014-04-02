@@ -19,9 +19,11 @@ import org.javaswift.joss.instructions.UploadInstructions;
 public class SwiftParameters implements HasSwiftSettings {
 
 	private final long segmentationSize ;
+	private final boolean hideSegmentsContainers ;
 	
 	public static final long MIN_SEGMENTATION_SIZE = 10485760 ; // 10MB
 	public static final long MAX_SEGMENTATION_SIZE = UploadInstructions.MAX_SEGMENTATION_SIZE ;
+	
 	
 	@Override
 	public long getSegmentationSize() {
@@ -29,21 +31,30 @@ public class SwiftParameters implements HasSwiftSettings {
 	}
 	
 	
+	@Override
+	public boolean hideSegmentsContainers() {
+		return hideSegmentsContainers;
+	}
+	
+	
 	private SwiftParameters (Builder b)
 	{
 		super () ;
 		this.segmentationSize = b.segmentationSize ;
+		this.hideSegmentsContainers = b.hideSegmentsContainers ;
 	}
 	
 	
 	public static class Builder
 	{
 		private final long segmentationSize ;
+		private final boolean hideSegmentsContainers ;
         
-        public Builder (long segmentationSize)
+        public Builder (long segmentationSize, boolean hideSegmentsContainers)
         {
         	super () ;
         	this.segmentationSize = Math.max(MIN_SEGMENTATION_SIZE, Math.min(segmentationSize, MAX_SEGMENTATION_SIZE)) ;
+        	this.hideSegmentsContainers = hideSegmentsContainers ;
         }
         
         public SwiftParameters build ()

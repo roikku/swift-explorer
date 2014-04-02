@@ -11,6 +11,7 @@
 <settings>
 	<swift>
 		<segmentationSize>50000000</segmentationSize>
+		<hideSegmentsContainers>true</hideSegmentsContainers>
 	</swift>
 	<proxy>
 		<http>

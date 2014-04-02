@@ -24,6 +24,7 @@ import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -55,6 +56,7 @@ public class SwiftPanel extends JPanel {
     private JButton cancelButton = null ;
     
     private final JTextField segmentationSizeTf = new JTextField();
+    private final JCheckBox hideSegmentsContainer ;
     
     private final HasSwiftSettings swiftSettings ;
     
@@ -72,6 +74,9 @@ public class SwiftPanel extends JPanel {
         this.callback = callback;
         this.stringsBundle = stringsBundle ;
         this.swiftSettings = swiftSettings ;
+        
+        hideSegmentsContainer = new JCheckBox (getLocalizedString("Hide_segments_container_check_box")) ;
+        hideSegmentsContainer.setSelected(swiftSettings.hideSegmentsContainers());
 
         segmentationSizeTf.setText(String.valueOf(this.swiftSettings.getSegmentationSize()));
         
@@ -81,10 +86,14 @@ public class SwiftPanel extends JPanel {
         Box box = Box.createVerticalBox();
 
         Box boxSegmentationSize = Box.createHorizontalBox();
-        boxSegmentationSize.setBorder(BorderFactory.createEmptyBorder(10, 6, 20, 6));
+        boxSegmentationSize.setBorder(BorderFactory.createEmptyBorder(10, 6, 10, 6));
         boxSegmentationSize.add(new JLabel(getLocalizedString("Segmentation_Size_In_Bytes"))) ;
         boxSegmentationSize.add(Box.createHorizontalStrut(8)) ;
         boxSegmentationSize.add(segmentationSizeTf) ;
+       
+        Box boxHideSegmentsContainer = Box.createHorizontalBox();
+        boxHideSegmentsContainer.setBorder(BorderFactory.createEmptyBorder(10, 6, 20, 6));
+        boxHideSegmentsContainer.add(hideSegmentsContainer) ;
         
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); 
         buttons.setBorder(BorderFactory.createEtchedBorder());
@@ -92,6 +101,7 @@ public class SwiftPanel extends JPanel {
         buttons.add(cancelButton);
 
         box.add(boxSegmentationSize) ;
+        box.add(boxHideSegmentsContainer) ;
 
         outer.add(box);
         this.add(outer, BorderLayout.NORTH);
@@ -133,7 +143,7 @@ public class SwiftPanel extends JPanel {
         	showInvalidSegmentationSizeDlg () ;
         	return ;
         }
-        SwiftParameters.Builder paramBuilder = new SwiftParameters.Builder (segmentationSize) ;
+        SwiftParameters.Builder paramBuilder = new SwiftParameters.Builder (segmentationSize, hideSegmentsContainer.isSelected()) ;
     	callback.setSwiftParameters(paramBuilder.build());
     }
     

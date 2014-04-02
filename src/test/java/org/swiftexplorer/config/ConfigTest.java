@@ -127,10 +127,13 @@ public class ConfigTest {
 		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
 		if (50000000 != swiftSettings.getSegmentationSize())
 			return false ;
+		if (!swiftSettings.hideSegmentsContainers())
+			return false ;
 		
 		if (printout)
 		{
 			logger.debug ("Segmentation Size: " + swiftSettings.getSegmentationSize()) ;
+			logger.debug ("Hide Segments Containers: " + swiftSettings.hideSegmentsContainers()) ;
 		}
 			
 		return true ;

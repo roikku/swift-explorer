@@ -30,6 +30,8 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 	private final long defaultSegmentationSize = 104857600 ; //UploadInstructions.MAX_SEGMENTATION_SIZE ;
 	private volatile long segmentationSize = defaultSegmentationSize ; 
 	
+	private volatile boolean hideSegmentsContainers = true ;
+	
 	public SwiftSettingsImpl (String baseProperty)
 	{
 		super () ;
@@ -47,6 +49,7 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 		// TODO: when the commom-configuration 2.0 will be released
 		// Lock config
 		// ...
+		hideSegmentsContainers = this.config.getBoolean(baseProperty + ".hideSegmentsContainers", true) ;
 		segmentationSize = Math.min(this.config.getLong(baseProperty + ".segmentationSize", defaultSegmentationSize), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
 	}
 	
@@ -54,6 +57,12 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 	@Override
 	public synchronized long getSegmentationSize() {
 		return segmentationSize;
+	}
+	
+	
+	@Override
+	public boolean hideSegmentsContainers() {
+		return hideSegmentsContainers;
 	}
 	
 	
@@ -71,8 +80,10 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 		}
 		
 		this.segmentationSize = Math.min(swiftParam.getSegmentationSize(), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
-
+		this.hideSegmentsContainers = swiftParam.hideSegmentsContainers() ;
+				
 		config.setProperty(baseProperty + ".segmentationSize", segmentationSize);	
+		config.setProperty(baseProperty + ".hideSegmentsContainers", hideSegmentsContainers);	
 		config.save();
 	}
 }

@@ -60,6 +60,28 @@ public class FileUtils {
 	}
 	
 	
+	public static String readAllAndgetMD5 (InputStream in) throws IOException
+	{
+		com.google.common.hash.HashingInputStream his = null ;
+		try
+		{
+			his = new com.google.common.hash.HashingInputStream (Hashing.md5(), in) ;
+			final int bufferSize = 32 * 1024 ;
+			byte[] bytesBuffer = new byte[bufferSize] ;
+			int r = in.read(bytesBuffer, 0, bufferSize) ;
+			while (r != -1)
+				r = in.read(bytesBuffer) ;
+			HashCode hc = his.hash() ;
+			return (hc != null) ? (hc.toString()) : (null) ;
+		}
+		finally
+		{
+			if (his != null)
+				his.close() ;
+		}
+	}
+	
+	
 	public static Queue<Path> getAllFilesPath (Path srcDir, boolean inludeDir) throws IOException
 	{
 		if (srcDir == null)
@@ -213,6 +235,8 @@ public class FileUtils {
 	
 	public static InputStream getInputStreamWithProgressFilter(InputStreamProgressFilter.StreamProgressCallback callback, long size, InputStream input)
 	{
+		if (input == null)
+			return null ;
 		InputStream in = new BufferedInputStream(
 				new InputStreamProgressFilter(input, size, callback));
 		return in;
@@ -227,6 +251,8 @@ public class FileUtils {
 	
 	public static InputStream getInputStreamWithProgressMonitor(InputStream input, Component parentComponent, String message)
 	{
+		if (input == null)
+			return null ;
 		Frame owner = null;
 		if (parentComponent == null) 
 			owner = SwingUtils.tryFindSuitableFrameOwner () ;

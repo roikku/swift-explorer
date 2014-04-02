@@ -10,7 +10,7 @@
 	</appender>
 
 	<root>
-		<!-- <priority value ="error" /> <priority value ="debug" /> -->
+		<!-- <priority value ="error" /> <priority value ="debug" /> <priority value="info" /> -->
 		<priority value="error" />
 		<appender-ref ref="console" />
 	</root>

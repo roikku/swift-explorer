@@ -28,6 +28,27 @@
 *
 */
 
+/* This file incorporates work covered by the following copyright and  
+ * permission notice:  
+ *  
+ * Copyright 2013 Robert Bor
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ * 
+ * Some function have been adapted from 
+ * - Joss (http://joss.javaswift.org/), package org.javaswift.joss.client.core, class AbstractStoredObject.java
+ * - Joss (http://joss.javaswift.org/), package org.javaswift.joss.client.core, class AbstractContainer.java 
+ */
 
 package org.swiftexplorer.swift.operations;
 
@@ -48,11 +69,18 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.Queue;
 
+import org.javaswift.joss.client.core.AbstractContainer;
+import org.javaswift.joss.client.core.AbstractStoredObject;
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.exception.CommandException;
+import org.javaswift.joss.headers.object.ObjectManifest;
+import org.javaswift.joss.instructions.SegmentationPlan;
 import org.javaswift.joss.instructions.UploadInstructions;
 import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
@@ -72,7 +100,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
     private volatile boolean useCustomSegmentation = false ;
     private volatile long segmentationSize = 104857600 ; // 100MB
-
+    
     
     public SwiftOperationsImpl() {
     	super () ;
@@ -203,6 +231,11 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		{
 			currentMessage = msg ;
 		}
+		
+		public synchronized String getCurrentMessage ()
+		{
+			return currentMessage ;
+		}
 	}
     
 
@@ -215,6 +248,10 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	CheckAccount () ;
     	
         if (spec != null) {
+        	
+        	if (spec.getName().endsWith(SwiftUtils.segmentsContainerPostfix))
+        		throw new AssertionError ("A container name cannot end with \"" + SwiftUtils.segmentsContainerPostfix + "\"") ;
+        	
             Container c = account.getContainer(spec.getName());
             if (!c.exists()) {
                 c.create();
@@ -316,7 +353,25 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	
     	CheckAccount () ;
     	
-        for (StoredObject storedObject : storedObjects) {
+        for (StoredObject storedObject : storedObjects) 
+        {
+			// segmented objects should be deleted as well
+			if (isSegmented (storedObject))
+			{				
+				List<StoredObject> segments = getSegmentsList (storedObject) ;
+				// we delete each segment, starting by the last one, so that if something
+				// unexpected happen at the middle of the iteration, the getSegmentsList method
+				// will still be able to get the list of the remaining segments. 
+	            ListIterator<StoredObject> segmentsIter = segments.listIterator(segments.size()) ;
+				while (segmentsIter.hasPrevious()) 
+				{
+					StoredObject segment = segmentsIter.previous() ;
+					if (segment == null)
+						continue ;
+					logger.info("Deleting segment " + segment.getPath());
+					segment.delete();
+				}
+			}
             storedObject.delete();
             callback.onStoredObjectDeleted(container, storedObject);
         }
@@ -413,20 +468,192 @@ public class SwiftOperationsImpl implements SwiftOperations {
     {			
     	if (storedObject == null || file == null)
     		return ;
+    	InputStream in = null ;
     	try
     	{
     		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
     		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
 	    	if (useCustomSegmentation)	
-		    	storedObject.uploadObject(new UploadInstructions (FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))).setSegmentationSize(segmentationSize)) ;
-	    	else		
-		    	storedObject.uploadObject(FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath()))) ;
+	    	{
+	    		UploadInstructions ui = new UploadInstructions (file).setSegmentationSize(segmentationSize) ;
+	    		if (ui.requiresSegmentation())
+	    		{
+		    		uploadObjectAsSegments (storedObject, ui, attr.size(), progInfo, callback) ;
+		    		return ;
+	    		}
+	    	}
+	    	in = FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath())) ;
+	    	storedObject.uploadObject(in) ;
     	}
 	    catch (OutOfMemoryError ome)
 	    {
 	    	System.gc() ; // pointless at this stage, but anyway...
 	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
 	    }
+    	finally
+    	{
+    		if (in != null)
+    			in.close();
+    	}
+    }
+    
+    
+    private Container getSegmentsContainer (StoredObject obj, boolean createIfNeeded)
+    {
+    	StringBuilder segmentsContainerName = new StringBuilder () ;
+    	segmentsContainerName.append(((AbstractStoredObject)obj).getContainer().getName()) ;
+    	segmentsContainerName.append(SwiftUtils.segmentsContainerPostfix) ;
+    	
+    	Container segmentsContainer = account.getContainer(segmentsContainerName.toString()) ;
+    	if (createIfNeeded && !segmentsContainer.exists())
+    	{
+    		segmentsContainer.create() ;
+    		segmentsContainer.makePrivate();
+    	}
+    	return segmentsContainer ;
+    }
+    
+    
+    // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractStoredObject.java 
+    // and adapted here.
+    private void uploadObjectAsSegments(StoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    {    	
+    	Container segmentsContainer = getSegmentsContainer (obj, true) ;
+    	
+    	AbstractContainer abstractContainer = (AbstractContainer)segmentsContainer ;
+    	uploadSegmentedObjects(abstractContainer, (AbstractStoredObject)obj, uploadInstructions, size, progInfo, callback);
+    	
+    	StringBuilder sb = new StringBuilder () ;
+    	sb.append(segmentsContainer.getName()) ;
+    	sb.append(obj.getPath().replaceFirst(((AbstractStoredObject)obj).getContainer().getPath(), "")) ;
+    	
+        UploadInstructions manifest = new UploadInstructions(new byte[] {})
+				        .setObjectManifest(new ObjectManifest(sb.toString())) // Manifest does not accept preceding slash
+				        .setContentType(uploadInstructions.getContentType()
+	        		);
+        obj.uploadObject(manifest);
+    }
+    
+    
+    private long getNumberOfSegments (long totalSize, UploadInstructions uploadInstructions)
+    {
+    	return totalSize / uploadInstructions.getSegmentationSize() + (long)((totalSize % uploadInstructions.getSegmentationSize() == 0)?(0):(1)) ;
+    }
+    
+    
+	private boolean isSegmented (StoredObject obj)
+    {
+    	if (obj == null)
+    		return false ;
+    	if (!obj.exists())
+    		return false ;
+    	if (SwiftUtils.directoryContentType.equals(obj.getContentType()))
+    		return false ;
+    	Container segCont = getSegmentsContainer (obj, false) ;
+    	if (segCont == null || !segCont.exists())
+    		return false ;
+    	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;    	
+    	return segObj != null && segObj.exists() ;
+    }
+    
+    
+	private List<StoredObject> getSegmentsList (StoredObject obj)
+    {
+    	List<StoredObject> ret = new ArrayList<StoredObject> () ;
+    	Container segCont = getSegmentsContainer (obj, false) ;
+    	if (segCont == null || !segCont.exists())
+    		return ret ;
+    	int segCount = 1 ;
+    	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(segCount)) ;
+    	while (segObj != null && segObj.exists())
+    	{
+    		ret.add (segObj) ;
+    		++segCount ;
+    		segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(segCount)) ;
+    	}
+    	return ret ;
+    }
+    
+    
+    @SuppressWarnings("unused")
+	private Map<Long, String> getMd5PlanMap (UploadInstructions uploadInstructions) throws IOException
+    {
+    	Map<Long, String> ret = new HashMap<Long, String> () ;
+    	SegmentationPlan plan = uploadInstructions.getSegmentationPlan();
+    	InputStream segmentStream = plan.getNextSegment() ;
+        while (segmentStream != null) 
+        {
+        	String md5 = FileUtils.readAllAndgetMD5(segmentStream) ;
+        	if (md5 != null && !md5.isEmpty())
+        		ret.put(plan.getSegmentNumber(), md5) ;
+            segmentStream = plan.getNextSegment() ;
+        }
+        return ret ;
+    }
+    
+    
+    // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractContainer.java 
+    // and adapted here.
+    private void uploadSegmentedObjects(AbstractContainer abstractContainer, AbstractStoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    {
+    	if (size < uploadInstructions.getSegmentationSize())
+    		throw new AssertionError (String.format("The file size (%d) must be greater than the segmentation size (%d)", size, uploadInstructions.getSegmentationSize())) ;
+
+    	StringBuilder pathBuilder = new StringBuilder () ;
+    	pathBuilder.append(abstractContainer.getName()) ;
+    	pathBuilder.append(SwiftUtils.separator) ;
+    	pathBuilder.append(obj.getName()) ;
+        String path = pathBuilder.toString()  ;
+        try 
+        {
+            logger.info("JOSS / Setting up a segmentation plan for " + path);
+            
+            //Map<Long, String> md5PlanMap = getMd5PlanMap (uploadInstructions) ;
+            SegmentationPlan plan = uploadInstructions.getSegmentationPlan();
+            long numSegments = getNumberOfSegments (size, uploadInstructions) ;
+            String currMsg = progInfo.getCurrentMessage() ;
+            InputStream segmentStream = FileUtils.getInputStreamWithProgressFilter(progInfo, uploadInstructions.getSegmentationSize(), plan.getNextSegment()) ;
+            while (segmentStream != null) 
+            {
+            	Long planSeg = plan.getSegmentNumber() ;
+            	logger.info("JOSS / Uploading segment " + planSeg);
+            	progInfo.setCurrentMessage(String.format("%s (segment %d / %d)", currMsg, planSeg, numSegments));
+                StoredObject segment = getObjectSegment(abstractContainer, obj, planSeg);                
+                // check if this segment can be ignored
+                /*boolean ignore = false ;
+                if (segment.exists() && md5PlanMap.containsKey(planSeg))
+                {
+        			String etag = segment.getEtag() ;
+        			String md5 = md5PlanMap.get(planSeg) ;
+        			if (etag != null && etag.equals(md5))
+        				ignore = true ; 
+                }
+              
+                if (!ignore)*/
+                segment.uploadObject(segmentStream);
+                segmentStream.close();
+                segmentStream = FileUtils.getInputStreamWithProgressFilter(progInfo, (planSeg + 1 != numSegments)?(uploadInstructions.getSegmentationSize()):(size % uploadInstructions.getSegmentationSize()), plan.getNextSegment());
+            }
+        } 
+        catch (IOException err) 
+        {
+        	logger.error("JOSS / Failed to set up a segmentation plan for " + path + ": " + err.getMessage());
+        	callback.onError(new CommandException("Unable to upload segments", err));
+        }
+    }
+    
+    
+    // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractContainer.java 
+    // and adapted here.
+    private StoredObject getObjectSegment(Container segmentsContainer, AbstractStoredObject obj, Long part) 
+    {
+    	if (part <= 0)
+    		throw new AssertionError ("Segments are 1-indexed.") ;
+    	StringBuilder segmentName = new StringBuilder () ;
+    	segmentName.append (obj.getName()) ;
+    	segmentName.append (SwiftUtils.separator) ;
+    	segmentName.append (String.format("%08d", part.intValue())) ;
+        return segmentsContainer.getObject(segmentName.toString());
     }
 
     
@@ -555,6 +782,9 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		{
 			if (Files.isDirectory(path))
 				return true ; // the folder already exists
+			
+			//if (isSegmented (obj))
+			//	return false ;
 			
 			String etag = obj.getEtag() ;
 			String md5 = FileUtils.getMD5(path.toFile()) ;

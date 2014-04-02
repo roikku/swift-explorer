@@ -249,6 +249,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final boolean createDefaultContainerInMockMode = true ;
     private final boolean allowCustomeSegmentationSize = true ;
     
+    private volatile boolean hideSegmentsContainers = false ; 
 
     /**
      * creates MainPanel and immediately logs in using the given credentials.
@@ -306,6 +307,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         //
         JScrollPane left = new JScrollPane(containersList);
         //
+        
+        if (config != null && config.getSwiftSettings() != null)
+        	hideSegmentsContainers = config.getSwiftSettings().hideSegmentsContainers() ;
         
         tree.setEditable(false);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
@@ -1076,6 +1080,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				
 				// set the new swift settings
 				config.updateSwiftParameters(newParameters);
+				hideSegmentsContainers = newParameters.hideSegmentsContainers() ;
 				swiftParamDialog.setVisible(false);
 			}
 
@@ -1221,6 +1226,12 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	        	if (name == null || name.trim().isEmpty())
 	        	{
 	        		JOptionPane.showMessageDialog(this, getLocalizedString("please_enter_non_empty_directory_name"));
+	        		continue ;
+	        	}
+	        	if (name.endsWith(SwiftUtils.segmentsContainerPostfix))
+	        	{
+	        		String msg = MessageFormat.format (getLocalizedString("please_enter_a_directory_name_that_does_not_end_with__segments"), SwiftUtils.segmentsContainerPostfix) ;
+	        		JOptionPane.showMessageDialog(this, msg);
 	        		continue ;
 	        	}
 	        	return new ContainerSpecification(name.trim(), priv.isSelected());
@@ -1512,6 +1523,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_one_directory_delete_from_container"), obj.getName(), container.getName()) ;
         if (confirm(msg)) {
+        	onProgressButton () ;
         	ops.deleteDirectory(container, obj, callback) ;
         }
     }
@@ -1541,6 +1553,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_many_files_delete_from_container"), String.valueOf(obj.size()), container.getName()) ;
     	if (confirm(msg)) {
+    		onProgressButton () ;
             ops.deleteStoredObjects(container, obj, callback);
         }
     }
@@ -1577,7 +1590,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				
 				// We open the progress window, for it is likely that this operation
 				// will take a while
-				if (selectedFiles != null && selectedFiles.length > 1)
+				if (selectedFiles != null /*&& selectedFiles.length > 1*/)
 				{
 		            onProgressButton () ;
 				}
@@ -1890,6 +1903,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
         containers.clear();
         for (Container container : cs) {
+        	if (hideSegmentsContainers)
+        	{
+        		if (container.getName().endsWith(SwiftUtils.segmentsContainerPostfix))
+        			continue ;
+        	}
             containers.addElement(container);
         }
         statusPanel.onDeselectContainer();
