@@ -391,44 +391,52 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	// First, we check whether we want to download a full directory (i.e., "recursively")
     	if (SwiftUtils.isDirectory(storedObject) && target.isDirectory())
     	{
-    		String prefix = storedObject.getName() + SwiftUtils.separator ;
-    		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
-    		
-    		int currentUplodedFilesCount = 0 ;
-    		int totalFiles = listObj.size() ;
-    		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
-    		
-            for (StoredObject so : listObj) 
-            {
-            	++currentUplodedFilesCount ;
-            	
-            	if (so == null)
-            		continue ;
-            	
-            	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
-            	
-            	StringBuilder pathBuilder = new StringBuilder () ;
-            	pathBuilder.append(target.getPath ()) ;
-            	if (!target.getPath ().endsWith(File.separator))
-            		pathBuilder.append(File.separator) ;
-            	pathBuilder.append(storedObject.getName()) ;
-            	pathBuilder.append(so.getName().replaceFirst(storedObject.getName(),"").trim()) ;
-            	String path = pathBuilder.toString() ;
-            	if (!SwiftUtils.separator.equals(File.separator))
-            		path = path.replace(SwiftUtils.separator, File.separator) ;
-            	
-            	File destFile = new File(path);
-            	if (SwiftUtils.isDirectory(so))
-            		destFile.mkdirs();
-            	else
-            	{
-            		File parent = destFile.getParentFile() ;
-            		if (parent != null)
-            			parent.mkdirs() ;
-            		downloadObject (so, destFile, progInfo, callback) ;
-            	}
-            }
-    		logger.info("Downloaded directory '{}' into '{}'", storedObject.getName(), target.getPath());
+    		try
+    		{
+	    		String prefix = storedObject.getName() + SwiftUtils.separator ;
+	    		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
+	    		
+	    		int currentUplodedFilesCount = 0 ;
+	    		int totalFiles = listObj.size() ;
+	    		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+	    		
+	            for (StoredObject so : listObj) 
+	            {
+	            	++currentUplodedFilesCount ;
+	            	
+	            	if (so == null)
+	            		continue ;
+	            	
+	            	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
+	            	
+	            	StringBuilder pathBuilder = new StringBuilder () ;
+	            	pathBuilder.append(target.getPath ()) ;
+	            	if (!target.getPath ().endsWith(File.separator))
+	            		pathBuilder.append(File.separator) ;
+	            	pathBuilder.append(storedObject.getName()) ;
+	            	pathBuilder.append(so.getName().replaceFirst(storedObject.getName(),"").trim()) ;
+	            	String path = pathBuilder.toString() ;
+	            	if (!SwiftUtils.separator.equals(File.separator))
+	            		path = path.replace(SwiftUtils.separator, File.separator) ;
+	            	
+	            	File destFile = new File(path);
+	            	if (SwiftUtils.isDirectory(so))
+	            		destFile.mkdirs();
+	            	else
+	            	{
+	            		File parent = destFile.getParentFile() ;
+	            		if (parent != null)
+	            			parent.mkdirs() ;
+	            		downloadObject (so, destFile, progInfo, callback) ;
+	            	}
+	            }
+	    		logger.info("Downloaded directory '{}' into '{}'", storedObject.getName(), target.getPath());
+    		}
+    	    catch (OutOfMemoryError ome)
+    	    {
+    	    	System.gc() ; // pointless at this stage, but anyway...
+    	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+    	    }
     	}
     	else if (SwiftUtils.isDirectory(storedObject))
     	{
@@ -1001,31 +1009,41 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	if (!SwiftUtils.isDirectory(storedObject))
     		throw new AssertionError ("The object to delete must be a directory.") ;
     	
-		String prefix = storedObject.getName() + SwiftUtils.separator ;
-		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
-		int currentUplodedFilesCount = 0 ;
-		int totalFiles = listObj.size() ;
-		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
-		
-        for (StoredObject so : listObj) 
-        {
-        	++currentUplodedFilesCount ;
-        	
-        	if (so == null)
-        		continue ;
-        	
-        	// defensive check, it should not be necessary, provided that
-        	// the prefix was given to eagerFetchStoredObjects 
-        	if (!so.getName().startsWith(storedObject.getName()))
-        		continue ;
-        	
-        	progInfo.setCurrentMessage(String.format ("Deleting %s", so.getName())) ;
-        	progInfo.setCurrentProgress(1) ;
-        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
-
-        	deleteStoredObjects (container, Arrays.asList(so), callback) ;
-        }
-        logger.info("Deleted directory '{}'", storedObject.getName());
-        deleteStoredObjects (container, Arrays.asList(storedObject), callback) ;
+    	try
+    	{
+			String prefix = storedObject.getName() + SwiftUtils.separator ;
+			Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
+			int currentUplodedFilesCount = 0 ;
+			int totalFiles = listObj.size() ;
+			ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+			
+	        for (StoredObject so : listObj) 
+	        {
+	        	++currentUplodedFilesCount ;
+	        	
+	        	if (so == null)
+	        		continue ;
+	        	
+	        	// defensive check, it should not be necessary, provided that
+	        	// the prefix was given to eagerFetchStoredObjects 
+	        	if (!so.getName().startsWith(storedObject.getName()))
+	        		continue ;
+	        	
+	        	progInfo.setCurrentMessage(String.format ("Deleting %s", so.getName())) ;
+	        	progInfo.setCurrentProgress(1) ;
+	        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
+	
+	        	deleteStoredObjects (container, Arrays.asList(so), callback) ;
+	        }
+	        logger.info("Deleted directory '{}'", storedObject.getName());
+	        deleteStoredObjects (container, Arrays.asList(storedObject), callback) ;
+	        reloadContainer(container, callback);
+	        callback.onNumberOfCalls(account.getNumberOfCalls());
+		}
+	    catch (OutOfMemoryError ome)
+	    {
+	    	System.gc() ; // pointless at this stage, but anyway...
+	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    }
 	}
 }
