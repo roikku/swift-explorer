@@ -14,11 +14,12 @@
 
 package org.swiftexplorer.swift.client.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.swiftexplorer.config.HasConfiguration;
 import org.swiftexplorer.config.proxy.HasProxySettings;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.command.impl.identity.ExtAuthenticationCommandImpl;
-
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
@@ -48,6 +49,8 @@ public class ExtClientImpl extends ClientImpl
 	}
 	
 	
+	final static Logger logger = LoggerFactory.getLogger(ExtClientImpl.class);
+	
 	private SwiftAccess swiftAccess ;
 	private org.apache.http.client.HttpClient httpClient;
 	private HasConfiguration config = null ;
@@ -56,12 +59,9 @@ public class ExtClientImpl extends ClientImpl
 	public ExtClientImpl(AccountConfig accountConfig, SwiftAccess swiftAccess, HasConfiguration config) 
 	{
 		super(accountConfig);
-		
-		// ATTENTION: config is used in initHttpClient, therefore it is essential
-		// to initial this.config prior to calling initHttpClient
+	
 		this.config = config ;
-		
-		initHttpClient(accountConfig.getSocketTimeout());
+		initHttpClient(accountConfig.getSocketTimeout(), this.config);
 		
 		this.swiftAccess = swiftAccess ;
 	}
@@ -86,7 +86,8 @@ public class ExtClientImpl extends ClientImpl
 	}
 	
 	
-    private void initHttpClient(int socketTimeout) {
+    private void initHttpClient(int socketTimeout, HasConfiguration config) {
+    	
         PoolingClientConnectionManager connectionManager = initConnectionManager();
         
         if(accountConfig.isDisableSslValidation()) {
@@ -95,7 +96,7 @@ public class ExtClientImpl extends ClientImpl
         
         this.httpClient = new DefaultHttpClient(connectionManager);
         if (socketTimeout != -1) {
-
+        	logger.info("JOSS / Set socket timeout on HttpClient: " + socketTimeout);
             HttpParams params = this.httpClient.getParams();
             HttpConnectionParams.setSoTimeout(params, socketTimeout);
         }
@@ -157,7 +158,7 @@ public class ExtClientImpl extends ClientImpl
 
 		return new AccountImpl(command, httpClient, access,
 				accountConfig.isAllowCaching(),
-				accountConfig.getTempUrlHashPrefixSource());
+				accountConfig.getTempUrlHashPrefixSource(), accountConfig.getDelimiter());
 	}
     
     
