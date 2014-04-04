@@ -281,23 +281,49 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
 
     private Collection<StoredObject> eagerFetchStoredObjects(Container parent) {
-    	   	
+    	 
+        Map<String, StoredObject> results = new HashMap<String, StoredObject>();
+        PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
+        for (int page = 0; page < map.getNumberOfPages(); page++) 
+        {
+        	for (StoredObject obj : parent.list(map, page))
+        	{
+        		if (null != results.put (obj.getName(), obj)) 
+        			logger.debug("Object listed twice: " + obj.getName());
+        	}
+        }
+        return results.values();
+        
+    	/*
         List<StoredObject> results = new ArrayList<StoredObject>(parent.getCount());
         PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
         for (int page = 0; page < map.getNumberOfPages(); page++) {
             results.addAll(parent.list(map, page));
         }
-        return results;
+        return results;*/
     }
     
     
     private Collection<StoredObject> eagerFetchStoredObjects(Container parent, String prefix) {
-        List<StoredObject> results = new ArrayList<StoredObject>(parent.getCount());
+        Map<String, StoredObject> results = new HashMap<String, StoredObject>();
+        PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
+        for (int page = 0; page < map.getNumberOfPages(); page++) 
+        {
+        	for (StoredObject obj : parent.list(prefix, map.getMarker(page), map.getPageSize()))
+        	{
+        		if (null != results.put (obj.getName(), obj)) 
+        			logger.debug(String.format("Object listed twice: %s (prefix used: %s)", obj.getName(), prefix));
+        	}
+        }
+        return results.values();
+        
+    	/*
+        List<StoredObject> results = new ArrayList<StoredObject>();
         PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
         for (int page = 0; page < map.getNumberOfPages(); page++) {
             results.addAll(parent.list(prefix, map.getMarker(page), map.getPageSize()));
         }
-        return results;
+        return results;*/
     }
     
 
@@ -366,13 +392,19 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				while (segmentsIter.hasPrevious()) 
 				{
 					StoredObject segment = segmentsIter.previous() ;
-					if (segment == null)
+					if (segment == null || !segment.exists())
 						continue ;
 					logger.info("Deleting segment " + segment.getPath());
 					segment.delete();
 				}
 			}
-            storedObject.delete();
+			if (storedObject.exists())
+			{
+				storedObject.delete();
+				logger.info("Deleted object: " + storedObject.getName());
+			}
+			else
+				logger.debug("Attempt at deleting a non-existing object: " + storedObject.getName());
             callback.onStoredObjectDeleted(container, storedObject);
         }
         callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -413,7 +445,11 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	            	pathBuilder.append(target.getPath ()) ;
 	            	if (!target.getPath ().endsWith(File.separator))
 	            		pathBuilder.append(File.separator) ;
-	            	pathBuilder.append(storedObject.getName()) ;
+	            	String dirName = storedObject.getName() ;
+	            	int index = dirName.lastIndexOf(SwiftUtils.separator) ;
+	            	if (index >= 0)
+	            		dirName = dirName.substring(index + 1) ;
+	            	pathBuilder.append(dirName) ;
 	            	pathBuilder.append(so.getName().replaceFirst(storedObject.getName(),"").trim()) ;
 	            	String path = pathBuilder.toString() ;
 	            	if (!SwiftUtils.separator.equals(File.separator))
@@ -434,8 +470,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     		}
     	    catch (OutOfMemoryError ome)
     	    {
-    	    	System.gc() ; // pointless at this stage, but anyway...
-    	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+    	    	dealWithOutOfMemoryError (ome, "downloadStoredObject", callback) ;
     	    }
     	}
     	else if (SwiftUtils.isDirectory(storedObject))
@@ -466,8 +501,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	}
 	    catch (OutOfMemoryError ome)
 	    {
-	    	System.gc() ; // pointless at this stage, but anyway...
-	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    	dealWithOutOfMemoryError (ome, "downloadObject", callback) ;
 	    }
     }
     
@@ -495,8 +529,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	}
 	    catch (OutOfMemoryError ome)
 	    {
-	    	System.gc() ; // pointless at this stage, but anyway...
-	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    	dealWithOutOfMemoryError (ome, "uploadObject", callback) ;
 	    }
     	finally
     	{
@@ -674,11 +707,13 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	CheckAccount () ;
     	
         for (StoredObject so : eagerFetchStoredObjects(container)) {
-            so.delete();
+        	if (so.exists())
+        		so.delete();
             callback.onNumberOfCalls(account.getNumberOfCalls());
         }
         reloadContainer(container, callback);
         callback.onNumberOfCalls(account.getNumberOfCalls());
+        logger.info(String.format("Container %s has been emptied", container.getName()));
     }
 
     
@@ -691,12 +726,14 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	CheckAccount () ;
     	
         for (StoredObject so : eagerFetchStoredObjects(container)) {
-            so.delete();
+        	if (so.exists())
+        		so.delete();
             callback.onNumberOfCalls(account.getNumberOfCalls());
         }
         container.delete();
         callback.onUpdateContainers(eagerFetchContainers(account));
         callback.onNumberOfCalls(account.getNumberOfCalls());
+        logger.info(String.format("Container %s has been removed", container.getName()));
     }
 
     
@@ -731,6 +768,11 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
     
     private void reloadContainer(Container container, SwiftCallback callback, boolean showProgress) {
+    	
+    	if (container == null)
+    		return ;
+    	
+    	container.reload();
     	
     	int total = container.getCount() ;
     	int current = 0 ;
@@ -1042,8 +1084,15 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		}
 	    catch (OutOfMemoryError ome)
 	    {
-	    	System.gc() ; // pointless at this stage, but anyway...
-	    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+	    	dealWithOutOfMemoryError (ome, "deleteDirectory", callback) ;
 	    }
+	}
+	
+	
+	private void dealWithOutOfMemoryError (OutOfMemoryError ome, String functionName, SwiftCallback callback)
+	{
+    	System.gc() ; // pointless at this stage, but anyway...
+    	logger.error(String.format("OutOfMemory error occurred while calling SwiftOperationsImpl.%s", functionName), ome);
+    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
 	}
 }
