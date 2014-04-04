@@ -166,7 +166,7 @@ import com.beust.jcommander.ParameterException;
  * 
  */
 public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
-	
+		
 	private static final long serialVersionUID = 1L;
 	
 	final private Logger logger = LoggerFactory.getLogger(MainPanel.class);
@@ -182,6 +182,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final List<StoredObject> allStoredObjects = Collections.synchronizedList(new ArrayList<StoredObject>());
 
     private final JTree tree = new JTree (new Object[] {}) ;
+    private List<TreePath> treeExpansionState = null ;
     
     private final JTextField searchTextField = new JTextField(16);
     private final JButton progressButton = new JButton() ;
@@ -627,7 +628,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	}
     
     
-    private void buildTree ()
+    private void buildTree (boolean restore)
     {
     	Container selectedContainer = getSelectedContainer() ;
     	if (selectedContainer == null)
@@ -639,25 +640,28 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	final List<StoredObject> storedObjectsList ;
     	String filter = searchTextField.getText();
-    	synchronized (allStoredObjects)
-    	{
-	    	if (filter != null && !filter.isEmpty())
-	    	{
-	    		storedObjectsList = new ArrayList<StoredObject> () ;
-	            for (StoredObject storedObject : allStoredObjects) {
-	                if (isFilterIncluded(storedObject)) {
-	                	storedObjectsList.add(storedObject);
-	                }
-	            }
-	    	}
-	    	else
-	    		storedObjectsList = allStoredObjects ;
-	    	
-	        StoredObjectsTreeModel nm = new StoredObjectsTreeModel (selectedContainer, storedObjectsList) ;
-	        tree.setRootVisible(!allStoredObjects.isEmpty()) ;
-	        tree.setModel(nm) ;
 
+		if (restore)
+			treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState(tree) ;
+		
+    	if (filter != null && !filter.isEmpty())
+    	{
+    		storedObjectsList = new ArrayList<StoredObject> () ;
+            for (StoredObject storedObject : allStoredObjects) {
+                if (isFilterIncluded(storedObject)) {
+                	storedObjectsList.add(storedObject);
+                }
+            }
     	}
+    	else
+    		storedObjectsList = allStoredObjects ;
+    	
+        StoredObjectsTreeModel nm = new StoredObjectsTreeModel (selectedContainer, storedObjectsList) ;
+        tree.setRootVisible(!allStoredObjects.isEmpty()) ;
+        tree.setModel(nm) ;
+
+        if (restore && treeExpansionState != null && !treeExpansionState.isEmpty())
+        	StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
     }
     
     
@@ -999,9 +1003,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     public void onLogout() {
         ops.logout(callback);
 
-        storedObjects.clear();
-        allStoredObjects.clear();
-        buildTree () ;
+        clearStoredObjectViews () ;
     }
     
 
@@ -1178,6 +1180,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         String msg = MessageFormat.format (getLocalizedString("confirm_msg_purging_container"), c.getName()) ;
         if (confirm(msg)) {
             ops.purgeContainer(c, callback);   
+            clearStoredObjectViews () ;
         }
     }
 
@@ -1192,10 +1195,20 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
 
     
+    private void clearStoredObjectViews ()
+    {
+        storedObjects.clear();
+        allStoredObjects.clear();
+        buildTree (false) ;
+    }
+    
+    
     protected void onRefreshContainers() {
         int idx = containersList.getSelectedIndex();
         refreshContainers();
         containersList.setSelectedIndex(idx);
+        
+        refreshFiles((idx < containers.size() && idx >= 0) ? ((Container) containers.get(idx)) : (null)) ;
     }
 
     
@@ -1773,7 +1786,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
                 if (ex instanceof CommandException) {
                     showError((CommandException) ex);
                 } else {
-                    ex.printStackTrace();
+                    logger.error("Error occurred", ex);
                 }
             }
 
@@ -1829,7 +1842,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         //set the tablist
         if (allStoredObjects.size() != storedObjects.size())
         	objectViewTabbedPane.setSelectedIndex(listviewTabIndex);
-        buildTree () ;
+        buildTree (true) ;
     }
     
     
@@ -1928,23 +1941,25 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             storedObjects.removeElement(storedObject);
             allStoredObjects.remove(storedObject);
             
-            buildTree () ;
+            buildTree (true) ;
         }
     }
     
-
+    
     /**
      * {@inheritDoc}.
      */
     @Override
     public void onNewStoredObjects() {
 
+    	treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState(tree) ;
+    			
         searchTextField.setText("");
         storedObjects.clear();
         allStoredObjects.clear();
         statusPanel.onDeselectStoredObject();
         
-        buildTree () ;
+        buildTree (true) ;
     }
 
     
@@ -1964,6 +1979,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 		    }
 		    
 		    updateTree (sos) ;
+		    StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
 		    
 		    // TODO: seems to be necessary to avoid freezing for huge amount of objects
 		    // Must be checked

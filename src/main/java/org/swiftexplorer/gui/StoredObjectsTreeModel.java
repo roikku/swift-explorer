@@ -17,15 +17,18 @@ package org.swiftexplorer.gui;
 
 import org.swiftexplorer.swift.util.SwiftUtils;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import javax.swing.JTree;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.TreeModel;
@@ -36,6 +39,36 @@ import org.javaswift.joss.model.StoredObject;
 
 public class StoredObjectsTreeModel implements TreeModel
 {	
+	public static class TreeUtils{
+		
+		private TreeUtils () { super () ; } ;
+	    
+	    public static List<TreePath> getTreeExpansionState (JTree tree)
+	    {
+	    	if (tree == null)
+	    		return null ;
+	    	List<TreePath> ret = new ArrayList<TreePath> () ;
+	    	for (int i = 0 ; i < tree.getRowCount() ; i++)
+	    	{
+	    		TreePath path = tree.getPathForRow(i) ;
+	    		if (tree.isExpanded(path))
+	    			ret.add (path) ;
+	    	}
+	    	return ret ;
+	    }
+	    
+	    public static void setTreeExpansionState (JTree tree, List<TreePath> list)
+	    {
+	    	if (list == null || tree == null)
+	    		return ;
+	    	for (TreePath path : list)
+	    	{
+	    		tree.expandPath(path);
+	    	}
+	    }
+	}
+	
+	
 	public static interface TreeNode extends Comparable <TreeNode> 
 	{
         /**
@@ -206,13 +239,6 @@ public class StoredObjectsTreeModel implements TreeModel
 	private final String delimiter = SwiftUtils.separator ;
 	
 	private final Map<TreeNode, Set<TreeNode> > mapParentChildMap = Collections.synchronizedMap(new TreeMap<TreeNode, Set<TreeNode> >()) ;
-	//private final List<TreeNode> orderedTopLevelNodesList = Collections.synchronizedList(new ArrayList<TreeNode> ()) ;
-	
-	
-	//public StoredObjectsTreeModel(Collection<StoredObject> allStoredObjects) {
-	//	super();
-	//	initialize (allStoredObjects) ;
-	//}
 	
 	
 	public StoredObjectsTreeModel(Container rootContainer, Collection<StoredObject> allStoredObjects) {
@@ -238,7 +264,6 @@ public class StoredObjectsTreeModel implements TreeModel
 			throw new AssertionError ("The root cannot be null when initializing") ;
 		mapParentChildMap.clear();
 		mapParentChildMap.put(rootNode, new TreeSet<TreeNode> ()) ;
-		//orderedTopLevelNodesList.clear() ;
 		processList (storedObjectsList) ;
 	}
 	
@@ -246,11 +271,6 @@ public class StoredObjectsTreeModel implements TreeModel
 	public synchronized void addAll (Collection<StoredObject> newStoredObjectsList)
 	{		
 		processList (newStoredObjectsList) ;
-		//Collections.sort(orderedTopLevelNodesList) ;
-		// We need to sort, and to get rid of the possible duplicates
-		//Set<TreeNode> sortedSet = new TreeSet<TreeNode> (orderedTopLevelNodesList) ;
-		//orderedTopLevelNodesList.clear(); 
-		//orderedTopLevelNodesList.addAll(sortedSet) ;
 		fireTreeStructureChanged () ;
 	}
 	
@@ -259,7 +279,6 @@ public class StoredObjectsTreeModel implements TreeModel
 	{
 		if (list == null)
 			return ;
-		//Set<TreeNode> topLevelNodesSet = new TreeSet<TreeNode> () ;
 		Map<String, StoredObject> objectMap = new HashMap<String, StoredObject> () ;
 		for (StoredObject so : list)
 		{
@@ -276,7 +295,6 @@ public class StoredObjectsTreeModel implements TreeModel
 				TreeNode newNode = TreeNodeImpl.buildObjectNode(so, splitted[0], splitted[0]) ;
 				if (!mapParentChildMap.containsKey(newNode))
 					mapParentChildMap.put(newNode, new TreeSet<TreeNode> ()) ;
-				//topLevelNodesSet.add(newNode) ;
 				mapParentChildMap.get(rootNode).add(newNode) ;
 			}
 			else
@@ -291,7 +309,6 @@ public class StoredObjectsTreeModel implements TreeModel
 					String currObjName = objectName.toString() ;
 					TreeNode newNode = TreeNodeImpl.buildObjectNode(objectMap.get(currObjName), currObjName, splitted[i]) ;
 					if (i == 0)
-						//topLevelNodesSet.add(newNode) ;
 						mapParentChildMap.get(rootNode).add(newNode) ;
 					
 					// Next object
@@ -320,15 +337,7 @@ public class StoredObjectsTreeModel implements TreeModel
 				}
 			}
 		}
-		//orderedTopLevelNodesList.addAll(topLevelNodesSet) ;
 	}
-	
-	
-	/*
-	public synchronized void setRootContainer (Container rootContainer)
-	{
-		rootNode = TreeNodeImpl.buildRootNode(rootContainer) ; 
-	}*/
 
 	
 	@Override
@@ -342,40 +351,29 @@ public class StoredObjectsTreeModel implements TreeModel
 
 		if (!(parent instanceof TreeNode))
 			return null ;
+		if (!mapParentChildMap.containsKey(parent))
+			return null;
+		Set<TreeNode> children = mapParentChildMap.get(parent);
+		if (children == null)
+			return null;
 		
-		//if (((TreeNode)parent).isRoot())
-		//{
-		//	if (index < orderedTopLevelNodesList.size())
-		//		return orderedTopLevelNodesList.get(index) ;
-		//	else
-		//		return null ;
-		//}
-		//else
+		// TODO: really bad! Should be improved!
+		// ...
+		if (index < children.size())
 		{
-			if (!mapParentChildMap.containsKey(parent))
-				return null;
-			Set<TreeNode> children = mapParentChildMap.get(parent);
-			if (children == null)
-				return null;
-			
-			// TODO: really bad! Should be improved!
-			// ...
-			if (index < children.size())
+			int count = 0 ;
+			for (TreeNode t : children)
 			{
-				int count = 0 ;
-				for (TreeNode t : children)
-				{
-					if (count >= index)
-						return t ;
-					++count ;
-				}
-				return null ;
-				// even worse...
-				//return children.toArray()[index] ;
+				if (count >= index)
+					return t ;
+				++count ;
 			}
-			else
-				return null ;
+			return null ;
+			// even worse...
+			//return children.toArray()[index] ;
 		}
+		else
+			return null ;
 	}
 
 	
@@ -383,18 +381,12 @@ public class StoredObjectsTreeModel implements TreeModel
 	public synchronized int getChildCount(Object parent) {
 		if (!(parent instanceof TreeNode))
 			return 0 ;
-
-		//if (((TreeNode)parent).isRoot())
-		//	return orderedTopLevelNodesList.size() ;
-		//else
-		{
-			if (!mapParentChildMap.containsKey(parent))
-				return 0;
-			Set<TreeNode> children = mapParentChildMap.get(parent);
-			if (children == null)
-				return 0;
-			return children.size() ;
-		}		
+		if (!mapParentChildMap.containsKey(parent))
+			return 0;
+		Set<TreeNode> children = mapParentChildMap.get(parent);
+		if (children == null)
+			return 0;
+		return children.size() ;	
 	}
 	
 
@@ -430,10 +422,7 @@ public class StoredObjectsTreeModel implements TreeModel
 			return -1 ;
 		if (!(parent instanceof TreeNode) || !(child instanceof TreeNode))
 			return -1 ;
-		
-		//if (((TreeNode)parent).isRoot())
-		//	return orderedTopLevelNodesList.indexOf(child) ;
-		
+
 		if (!mapParentChildMap.containsKey((TreeNode)parent))
 			return -1 ;
 		
