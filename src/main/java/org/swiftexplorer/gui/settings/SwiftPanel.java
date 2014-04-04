@@ -62,10 +62,10 @@ public class SwiftPanel extends JPanel {
 	
 	private static class SegmentationSizeSlider
 	{
-		private final int scale ;
+		private final double scale ;
 		private final JSlider slider ;
 		
-		public SegmentationSizeSlider (int scale, int orientation)
+		public SegmentationSizeSlider (double scale, int orientation)
 		{
 			super () ;
 			slider = new JSlider (orientation) ;
@@ -74,7 +74,7 @@ public class SwiftPanel extends JPanel {
 		
 	    private int getScaledValue (long val)
 	    {
-	    	long scaledVal = val / scale ;
+	    	long scaledVal = (long)(val / scale) ;
 	    	if (scaledVal > Integer.MAX_VALUE)
 	    		throw new AssertionError () ;
 	    	return (int) scaledVal ;
@@ -82,7 +82,7 @@ public class SwiftPanel extends JPanel {
 	    
 	    private long getActualValue (int val)
 	    {
-	    	return (long) val * scale ;
+	    	return (long) ((long) val * scale) ;
 	    }
 		
 		public long getValue() {
@@ -168,9 +168,7 @@ public class SwiftPanel extends JPanel {
     private final SwiftSettingsCallback callback;
     private JDialog owner;
     
-    private final int scale = 4 ;
     private boolean si = false ;
-
     
     public SwiftPanel(SwiftSettingsCallback callback, HasSwiftSettings swiftSettings, HasLocalizedStrings stringsBundle) {
         super(new BorderLayout(0, 0));
@@ -183,6 +181,8 @@ public class SwiftPanel extends JPanel {
         
         hideSegmentsContainer = new JCheckBox (getLocalizedString("Hide_segments_container_check_box")) ;
         hideSegmentsContainer.setSelected(swiftSettings.hideSegmentsContainers());
+
+        double scale = (SwiftParameters.MAX_SEGMENTATION_SIZE > Integer.MAX_VALUE) ? (SwiftParameters.MAX_SEGMENTATION_SIZE / (double)Integer.MAX_VALUE) : (1.0) ;
 
         segmentationSizeTf.setText(getSizeLabel(this.swiftSettings.getSegmentationSize()));
         segmentationSizeSlider = new SegmentationSizeSlider (scale, JSlider.HORIZONTAL) ;
