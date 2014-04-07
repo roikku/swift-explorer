@@ -137,7 +137,11 @@ public class SwiftPanel extends JPanel {
 			{
 		        Hashtable<Integer, JLabel> labelTable = new Hashtable<Integer, JLabel>();
 		        labelTable.put(new Integer(slider.getMinimum()), new JLabel(FileUtils.humanReadableByteCount(this.getMinimum(), si)));
-		        labelTable.put(new Integer(Math.abs(slider.getMaximum() - slider.getMinimum()) / 2 ), new JLabel(FileUtils.humanReadableByteCount(Math.abs(this.getMaximum() - this.getMinimum()) / 2 , si)));
+		        int scaledRange = Math.abs(slider.getMaximum() - slider.getMinimum()) ;
+		        long range = Math.abs(this.getMaximum() - this.getMinimum()) ;
+		        labelTable.put(new Integer(scaledRange / 4 ), new JLabel(FileUtils.humanReadableByteCount(range / 4 , si)));
+		        labelTable.put(new Integer(scaledRange / 2 ), new JLabel(FileUtils.humanReadableByteCount(range / 2 , si)));
+		        labelTable.put(new Integer(scaledRange / 4  * 3), new JLabel(FileUtils.humanReadableByteCount(range / 4  * 3, si)));
 		        labelTable.put(new Integer(slider.getMaximum()), new JLabel(FileUtils.humanReadableByteCount(this.getMaximum(), si)));
 		        slider.setLabelTable (labelTable);
 		        slider.setPaintLabels(true);
@@ -237,7 +241,7 @@ public class SwiftPanel extends JPanel {
     	
     	long range = SwiftParameters.MAX_SEGMENTATION_SIZE - SwiftParameters.MIN_SEGMENTATION_SIZE ;
     	segmentationSizeSlider.setExtent(100);
-        segmentationSizeSlider.setMajorTickSpacing(range / 2);
+        segmentationSizeSlider.setMajorTickSpacing(range / 8);
         segmentationSizeSlider.setPaintTicks(true);
         
         // Labels

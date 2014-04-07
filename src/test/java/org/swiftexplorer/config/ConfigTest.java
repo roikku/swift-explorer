@@ -14,128 +14,252 @@
 
 package org.swiftexplorer.config;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Arrays;
+
 import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.io.FileUtils;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.swiftexplorer.config.Configuration;
 import org.swiftexplorer.config.auth.HasAuthenticationSettings;
 import org.swiftexplorer.config.localization.HasLocalizationSettings;
 import org.swiftexplorer.config.proxy.HasProxySettings;
+import org.swiftexplorer.config.proxy.Proxy;
 import org.swiftexplorer.config.swift.HasSwiftSettings;
+import org.swiftexplorer.config.swift.SwiftParameters;
+import org.junit.Test;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 
 public class ConfigTest {
 
-	private static boolean printout = false ;
-	
 	final private static Logger logger = LoggerFactory.getLogger(ConfigTest.class);
+	private File configSettingFile = null ;
+	private static boolean hasConfigBeenLoaded = false ;
 	
-	public static boolean test ()
-	{
-		// default values
-		if (80 != Configuration.INSTANCE.getHttpProxySettings().getPort()) 
-			return false ;
-		if (443 != Configuration.INSTANCE.getHttpsProxySettings().getPort()) 
-			return false ;
-		
+	
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
+    
+    	
+    @Before
+    public void init() throws IOException {
+
+    	// generate the test config file
+    	File template = new File(new ConfigTest().getClass().getResource("/swiftexplorer-settings-test.xml").getFile()) ;
+    	configSettingFile = tmpFolder.newFile() ;
+    	FileUtils.copyFile(template, configSettingFile) ;
+    	assertFalse (configSettingFile == null) ;
+    	assertTrue (org.swiftexplorer.util.FileUtils.getFileAttr(Paths.get(configSettingFile.getPath())).size() > 0) ;
+    	
+    	// Check the default values before loading
+    	if (!hasConfigBeenLoaded)
+    	{
+	    	assertTrue (80 == Configuration.INSTANCE.getHttpProxySettings().getPort()) ;
+	    	assertTrue (443 == Configuration.INSTANCE.getHttpsProxySettings().getPort()) ;
+    	}
+    	
 		// load the test settings
 		try 
 		{
-			Configuration.INSTANCE.load(new ConfigTest().getClass().getResource("/swiftexplorer-settings-test.xml").getFile()) ;
+			Configuration.INSTANCE.load(configSettingFile.getPath()) ;
+			hasConfigBeenLoaded = true ;
 		} 
 		catch (ConfigurationException e) 
 		{
 			logger.error("Error occurred while loading the cinfiguration file", e);
-			return false ;
+			assertTrue(false) ;
 		}
+    }
+    
+    
+    @Test
+    public void shouldHaveHttpProxy() {
+    	verifyProxy (Configuration.INSTANCE.getHttpProxySettings(), false, "host-http", 9000, "user-http", "password-http") ;
+    }
+    
+    
+    @Test
+    public void shouldHaveHttpsProxy() {
+    	verifyProxy (Configuration.INSTANCE.getHttpsProxySettings(), false, "host-https", 9001, "user-https", "password-https") ;
+    }
+    
+    
+    private void verifyProxy (HasProxySettings proxySettings, boolean isActivate, String host, int port, String username, String password)
+    {
+		assertTrue (proxySettings.isActive() == isActivate) ;
+		assertTrue (username.equals(proxySettings.getUsername())) ;
+		assertTrue (password.equals(proxySettings.getPassword())) ;
+		assertTrue (host.equals(proxySettings.getHost())) ;
+		assertTrue (port == proxySettings.getPort()) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateHttpProxy() throws IOException {
+    	
+    	verifyProxy (Configuration.INSTANCE.getHttpProxySettings(), false, "host-http", 9000, "user-http", "password-http") ;
 		
-		HasProxySettings http = Configuration.INSTANCE.getHttpProxySettings() ;
+    	byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+
+		boolean activated = true ;
+		String host = "host.of.the.new.proxy" ;
+		String password = "the*new_password" ;
+		String username = "the new user name" ;
+		int port = 8567 ;
+		Proxy newProxy = new Proxy.Builder ("http")
+			.setActivated(activated)
+			.setHost(host)
+			.setPassword(password)
+			.setUsername(username)
+			.setPort(port).build() ;
 		
-		if (http.isActive())
-			return false ;
-		if (!"user-http".equals(http.getUsername()))
-			return false ;
-		if (!"password-http".equals(http.getPassword()))
-			return false ;
-		if (!"host-http".equals(http.getHost()))
-			return false ;
-		if (9000 != http.getPort())
-			return false ;
+		Configuration.INSTANCE.updateProxy(newProxy);
 		
-		if (printout)
-		{
-			logger.debug ("HTTP proxy config test") ;
-			logger.debug ("Active: " + http.isActive()) ;
-			logger.debug ("User: " + http.getUsername()) ;
-			logger.debug ("Password: " + http.getPassword()) ;
-			logger.debug ("Host: " + http.getHost()) ;
-			logger.debug ("Port: " + http.getPort()) ;
-		}
+		verifyProxy (Configuration.INSTANCE.getHttpProxySettings(), activated, host, port, username, password) ;
 		
-		HasProxySettings https = Configuration.INSTANCE.getHttpsProxySettings() ;
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateHttpsProxy() throws IOException {
+    	
+    	verifyProxy (Configuration.INSTANCE.getHttpsProxySettings(), false, "host-https", 9001, "user-https", "password-https") ;
+    	
+    	byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+
+		boolean activated = true ;
+		String host = "host.of.the.new.secured.proxy" ;
+		String password = "the*new_password*https" ;
+		String username = "the new user name for https" ;
+		int port = 8577 ;
+		Proxy newProxy = new Proxy.Builder ("https")
+			.setActivated(activated)
+			.setHost(host)
+			.setPassword(password)
+			.setUsername(username)
+			.setPort(port).build() ;
 		
-		if (https.isActive())
-			return false ;
-		if (!"user-https".equals(https.getUsername()))
-			return false ;
-		if (!"password-https".equals(https.getPassword()))
-			return false ;
-		if (!"host-https".equals(https.getHost()))
-			return false ;
-		if (9001 != https.getPort())
-			return false ;
+		Configuration.INSTANCE.updateProxy(newProxy);
 		
-		if (printout)
-		{
-			logger.debug ("HTTPS proxy config test") ;
-			logger.debug ("Active: " + https.isActive()) ;
-			logger.debug ("User: " + https.getUsername()) ;
-			logger.debug ("Password: " + https.getPassword()) ;
-			logger.debug ("Host: " + https.getHost()) ;
-			logger.debug ("Port: " + https.getPort()) ;
-		}
+		verifyProxy (Configuration.INSTANCE.getHttpsProxySettings(), activated, host, port, username, password) ;
 		
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldHaveAuthenticationSetting() {
 		HasAuthenticationSettings auth = Configuration.INSTANCE.getAuthenticationSettings() ;
-		
-		if (!"api_key".equals(auth.getClientId()))
-			return false ;
-		if (!"api_secret".equals(auth.getClientSecret()))
-			return false ;
-		if (!"http://localhost:9000/".equals(auth.getCallBackUrl()))
-			return false ;
-		
-		if (printout)
-		{
-			logger.debug ("Authentification config test") ;
-			logger.debug ("Key: " + auth.getClientId()) ;
-			logger.debug ("Secret: " + auth.getClientSecret()) ;
-			logger.debug ("Callback URL: " + auth.getCallBackUrl()) ;
-		}
-		
+		assertTrue ("api_key".equals(auth.getClientId())) ;
+		assertTrue ("api_secret".equals(auth.getClientSecret())) ;
+		assertTrue ("http://localhost:9000/".equals(auth.getCallBackUrl())) ;
+    }
+    
+    
+    @Test
+    public void shouldLocalizationSetting() {
 		HasLocalizationSettings localizationSettings = Configuration.INSTANCE.getLocalizationSettings() ;
+		assertTrue (HasLocalizationSettings.LanguageCode.en.equals(localizationSettings.getLanguage())) ;
+		assertTrue (HasLocalizationSettings.RegionCode.US.equals(localizationSettings.getRegion())) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateLocalizationSetting() throws IOException {
+    	
+		HasLocalizationSettings localizationSettings = Configuration.INSTANCE.getLocalizationSettings() ;
+		assertTrue (HasLocalizationSettings.LanguageCode.en.equals(localizationSettings.getLanguage())) ;
+		assertTrue (HasLocalizationSettings.RegionCode.US.equals(localizationSettings.getRegion())) ;
 		
-		if (!HasLocalizationSettings.LanguageCode.en.equals(localizationSettings.getLanguage()))
-			return false ;
-		if (!HasLocalizationSettings.RegionCode.US.equals(localizationSettings.getRegion()))
-			return false ;
+		byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
 		
-		if (printout)
-		{
-			logger.debug ("Language: " + localizationSettings.getLanguage().toString()) ;
-			logger.debug ("Region: " + localizationSettings.getRegion().toString()) ;
-		}
+    	Configuration.INSTANCE.updateLanguage(HasLocalizationSettings.LanguageCode.ja, HasLocalizationSettings.RegionCode.JP);
+    	
+		assertTrue (HasLocalizationSettings.LanguageCode.ja.equals(localizationSettings.getLanguage())) ;
+		assertTrue (HasLocalizationSettings.RegionCode.JP.equals(localizationSettings.getRegion())) ;
 		
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldHaveSwiftSetting() {
 		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
-		if (50000000 != swiftSettings.getSegmentationSize())
-			return false ;
-		if (!swiftSettings.hideSegmentsContainers())
-			return false ;
+		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers()) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateSwiftSetting() throws IOException {
+    	
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers()) ;
 		
-		if (printout)
-		{
-			logger.debug ("Segmentation Size: " + swiftSettings.getSegmentationSize()) ;
-			logger.debug ("Hide Segments Containers: " + swiftSettings.hideSegmentsContainers()) ;
-		}
-			
-		return true ;
-	}
+		byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+
+		long newSize = 12345678 ;
+		boolean hideSegCont = false ;
+		
+		assertTrue (newSize >= SwiftParameters.MIN_SEGMENTATION_SIZE) ;
+		assertTrue (newSize <= SwiftParameters.MAX_SEGMENTATION_SIZE) ;
+
+		SwiftParameters newParameters = new SwiftParameters.Builder(newSize, hideSegCont).build() ;
+		Configuration.INSTANCE.updateSwiftParameters(newParameters);
+		
+		assertTrue (newSize == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers() == hideSegCont) ;
+		
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateMaxSwiftSetting() throws IOException {
+    	
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		
+		long newSize = SwiftParameters.MAX_SEGMENTATION_SIZE + 1000 ;
+		boolean hideSegCont = false ;
+		
+		assertTrue (newSize > SwiftParameters.MAX_SEGMENTATION_SIZE) ;
+
+		SwiftParameters newParameters = new SwiftParameters.Builder(newSize, hideSegCont).build() ;
+		Configuration.INSTANCE.updateSwiftParameters(newParameters);
+		
+		assertTrue (SwiftParameters.MAX_SEGMENTATION_SIZE == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers() == hideSegCont) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateMinSwiftSetting() throws IOException {
+    	
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		
+		long newSize = SwiftParameters.MIN_SEGMENTATION_SIZE - 1000 ;
+		boolean hideSegCont = false ;
+		
+		assertTrue (newSize < SwiftParameters.MIN_SEGMENTATION_SIZE) ;
+
+		SwiftParameters newParameters = new SwiftParameters.Builder(newSize, hideSegCont).build() ;
+		Configuration.INSTANCE.updateSwiftParameters(newParameters);
+		
+		assertTrue (SwiftParameters.MIN_SEGMENTATION_SIZE == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers() == hideSegCont) ;
+    }
 }

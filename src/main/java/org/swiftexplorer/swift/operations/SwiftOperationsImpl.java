@@ -74,6 +74,8 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.javaswift.joss.client.core.AbstractContainer;
 import org.javaswift.joss.client.core.AbstractStoredObject;
@@ -282,48 +284,32 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
     private Collection<StoredObject> eagerFetchStoredObjects(Container parent) {
     	 
-        Map<String, StoredObject> results = new HashMap<String, StoredObject>();
+        Set<StoredObject> results = new TreeSet<StoredObject>();
         PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
         for (int page = 0; page < map.getNumberOfPages(); page++) 
         {
         	for (StoredObject obj : parent.list(map, page))
         	{
-        		if (null != results.put (obj.getName(), obj)) 
+        		if (!results.add (obj)) 
         			logger.debug("Object listed twice: " + obj.getName());
         	}
         }
-        return results.values();
-        
-    	/*
-        List<StoredObject> results = new ArrayList<StoredObject>(parent.getCount());
-        PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
-        for (int page = 0; page < map.getNumberOfPages(); page++) {
-            results.addAll(parent.list(map, page));
-        }
-        return results;*/
+        return results;
     }
     
     
     private Collection<StoredObject> eagerFetchStoredObjects(Container parent, String prefix) {
-        Map<String, StoredObject> results = new HashMap<String, StoredObject>();
+        Set<StoredObject> results = new TreeSet<StoredObject>();
         PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
         for (int page = 0; page < map.getNumberOfPages(); page++) 
         {
         	for (StoredObject obj : parent.list(prefix, map.getMarker(page), map.getPageSize()))
         	{
-        		if (null != results.put (obj.getName(), obj)) 
+        		if (!results.add (obj)) 
         			logger.debug(String.format("Object listed twice: %s (prefix used: %s)", obj.getName(), prefix));
         	}
         }
-        return results.values();
-        
-    	/*
-        List<StoredObject> results = new ArrayList<StoredObject>();
-        PaginationMap map = parent.getPaginationMap(MAX_PAGE_SIZE);
-        for (int page = 0; page < map.getNumberOfPages(); page++) {
-            results.addAll(parent.list(prefix, map.getMarker(page), map.getPageSize()));
-        }
-        return results;*/
+        return results;
     }
     
 
@@ -510,6 +496,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     {			
     	if (storedObject == null || file == null)
     		return ;
+    	
     	InputStream in = null ;
     	try
     	{
@@ -523,7 +510,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		    		uploadObjectAsSegments (storedObject, ui, attr.size(), progInfo, callback) ;
 		    		return ;
 	    		}
-	    	}
+	    	}	    	
 	    	in = FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath())) ;
 	    	storedObject.uploadObject(in) ;
     	}
@@ -776,6 +763,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	
     	int total = container.getCount() ;
     	int current = 0 ;
+    	ProgressInformation progInfo = new ProgressInformation (callback, true) ;
+    	progInfo.setTotalMessage("Refreshing the list of documents") ;
     	
         int page = 0;
         List<StoredObject> list = (List<StoredObject>) container.list("", null, MAX_PAGE_SIZE);
@@ -785,7 +774,9 @@ public class SwiftOperationsImpl implements SwiftOperations {
         	if (showProgress)
         	{
         		current += list.size() ;
-        		callback.onProgress(current / (double)total, "Refreshing the list of documents", 0, "") ;
+        		
+        		progInfo.setTotalProgress(current / (double)total);
+        		progInfo.report();
         	}
         	
             callback.onAppendStoredObjects(container, page++, list);

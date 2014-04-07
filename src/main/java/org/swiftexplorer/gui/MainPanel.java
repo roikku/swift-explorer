@@ -973,7 +973,13 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         StringBuilder sb = loadResource("/about.html");
         JLabel label = new JLabel(sb.toString());
         
-        String msg = MessageFormat.format (getLocalizedString("About_dlg_title"), " " + Configuration.INSTANCE.getAppName()) ;
+        StringBuilder title = new StringBuilder () ;
+        title.append (" ") ;
+        title.append (Configuration.INSTANCE.getAppName()) ;
+        title.append (" (") ;
+        title.append (Configuration.INSTANCE.getAppVersion()) ;
+        title.append (")") ;
+        String msg = MessageFormat.format (getLocalizedString("About_dlg_title"), title.toString()) ;
         
         JOptionPane.showMessageDialog(this, label, msg, JOptionPane.INFORMATION_MESSAGE, getIcon("logo.png"));
     }

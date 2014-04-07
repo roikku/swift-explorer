@@ -53,7 +53,9 @@ import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
 import org.javaswift.joss.model.StoredObject;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -251,12 +253,17 @@ public class SwiftOperationsTest {
     }
     
     
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
+    
+    
     private File getTestFile (String fileName, long fileSize) throws IOException
     {
         byte data [] = new byte[(int) fileSize] ;
         for (int i = 0 ; i < fileSize ; ++i)
         	data[i] = (byte)(Math.random() * 256) ;
-        File file = new File("./target/" + fileName);
+
+        File file = tmpFolder.newFile(fileName) ;
         
     	// generate test file
     	FileOutputStream out = new FileOutputStream(file);
@@ -290,7 +297,6 @@ public class SwiftOperationsTest {
         Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
         
         File file = null ;
-        boolean exceptionThrown = false ;
         try
         {         
         	file = getTestFile (fileName, fileSize) ;
@@ -311,14 +317,9 @@ public class SwiftOperationsTest {
         }
         catch (IOException e) 
         {
-        	exceptionThrown = true ;
+        	logger.error ("Error occurred in shouldCreateSegments", e) ;
+        	assertFalse(true);
 		}
-        finally
-        {
-        	if (file != null)
-        		file.delete();
-	        assertFalse(exceptionThrown);
-        }
     }
     
     
@@ -360,12 +361,11 @@ public class SwiftOperationsTest {
         }
         catch (IOException e) 
         {
+        	logger.error ("Error occurred in shouldDownloadSegmentedObject", e) ;
         	exceptionThrown = true ;
 		}
         finally
         {
-        	if (file != null)
-        		file.delete();
 	        target.delete() ;
 	        assertFalse(exceptionThrown);
         }	
@@ -389,7 +389,6 @@ public class SwiftOperationsTest {
         Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
 
         File file = null ;
-        boolean exceptionThrown = false ;
         try
         {        
         	file = getTestFile (fileName, fileSize) ;
@@ -418,13 +417,8 @@ public class SwiftOperationsTest {
         }
         catch (IOException e) 
         {
-        	exceptionThrown = true ;
-		}
-        finally
-        {
-        	if (file != null)
-        		file.delete();
-	        assertFalse(exceptionThrown);
-        }	
+        	logger.error ("Error occurred in shouldDeleteSegmentedObject", e) ;
+        	assertFalse(true) ;
+		}	
     }
 }
