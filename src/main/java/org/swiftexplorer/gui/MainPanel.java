@@ -1472,18 +1472,27 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     protected void onDownloadStoredObject() 
     {    	
         Container container = getSelectedContainer();
-        List<StoredObject> obj = getSelectedStoredObjects();
+        List<StoredObject> objList = getSelectedStoredObjects();
         JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(lastFolder);
-        if (obj.size() == 1) {
-            chooser.setSelectedFile(new File(obj.get(0).getName()));
+        if (objList.size() == 1) {
             chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+            // set the default value
+            StoredObject obj = objList.iterator().next() ;
+            if (obj != null && obj.getName() != null && !obj.getName().isEmpty())
+            {
+            	String fileName = obj.getName() ;
+            	int index = fileName.lastIndexOf(SwiftUtils.separator) ;
+            	if (index > 0)
+            		fileName = fileName.substring(index + 1) ;
+            	chooser.setSelectedFile(new File (fileName));
+            }
         } else {
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         }
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File selected = chooser.getSelectedFile();
-            for (StoredObject so : obj) 
+            for (StoredObject so : objList) 
             {
             	// We skip the directories
             	if (SwiftUtils.isDirectory(so))
