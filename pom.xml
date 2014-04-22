@@ -41,7 +41,7 @@
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<slf4j.version>1.7.6</slf4j.version>
 		<log4j.version>1.2.17</log4j.version>
-		<joss.version>0.9.6</joss.version> 
+		<joss.version>0.9.7</joss.version> 
 		<jcommander.version>1.30</jcommander.version>
 		<mockito.version>1.9.0</mockito.version>
 		<javafx.min.version>2.2</javafx.min.version>
