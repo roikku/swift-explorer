@@ -44,13 +44,18 @@ import org.swiftexplorer.util.FileUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
 import org.junit.Before;
 import org.junit.Rule;
@@ -420,5 +425,134 @@ public class SwiftOperationsTest {
         	logger.error ("Error occurred in shouldDeleteSegmentedObject", e) ;
         	assertFalse(true) ;
 		}	
+    }
+    
+    
+    private File getTestDirectoryWithFiles (String directoryName, String fileNamePrefix, int numberOfFiles) throws IOException
+    {
+    	assert (numberOfFiles >= 0) ;
+    	
+        File folder = tmpFolder.newFolder(directoryName) ;
+        
+        if (numberOfFiles == 0)
+        	return folder ;
+        
+        // We upload some files
+        StringBuilder fileNameBase = new StringBuilder () ;
+        fileNameBase.append(directoryName) ;
+        fileNameBase.append(File.separator) ;
+        fileNameBase.append(fileNamePrefix) ;
+        fileNameBase.append("_") ;
+        
+        File [] fileList = new File [numberOfFiles] ;
+        for (int i = 0 ; i < numberOfFiles ; ++i)
+        {
+        	final String fileName = fileNameBase.toString() + i ;
+        	fileList[i] = getTestFile (fileName, (long) (Math.random() * 1000 + 1)) ;
+        }
+        
+        return folder ;
+    }
+    
+    
+    @Test
+    public void shouldRefreshDirectoriesOrStoredObjectsWithoutParent() 
+    {
+        try
+        {  
+	        Container container = account.getContainer("x").create() ;
+	        
+	        final String directoryName = "directory" ;
+
+	        File folder = getTestDirectoryWithFiles (directoryName, "file", 10) ;
+	        ops.uploadDirectory(container, null, folder, true, callback);
+	        
+	        // verify that the uploaded files are correctly listed
+	    	@SuppressWarnings({ "unchecked", "rawtypes" })
+			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
+	    
+	        ops.refreshDirectoriesOrStoredObjects(container, null, callback);
+	        
+	        // one time when uploading the directory, one time when calling refreshDirectoriesOrStoredObjects
+	        Mockito.verify(callback, Mockito.times(2)).onNewStoredObjects();
+	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
+
+	        // this collection should have only one directory, whose name is directoryName
+	        assertTrue(argument.getValue().size() == 1) ;
+	        StoredObject obj = argument.getValue().iterator().next() ;
+	        assertTrue (obj.getBareName().equals(directoryName)) ;
+        }
+        catch (IOException e) 
+        {
+        	logger.error ("Error occurred in shouldRefreshDirectoriesOrStoredObjectsWithoutParent", e) ;
+        	assertFalse(true) ;
+		}	
+    }
+    
+    
+    @Test
+    public void shouldRefreshEmptyDirectoriesOrStoredObjectsWithParent() 
+    {
+        try
+        {  
+	        Container container = account.getContainer("x").create() ;
+	        
+	        final String directoryName = "directory" ;
+
+	        File folder = getTestDirectoryWithFiles (directoryName, "", 0) ;
+ 
+	        ops.uploadDirectory(container, null, folder, true, callback);
+
+	        // verify that the uploaded files are correctly listed
+	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
+
+	        // onAppendStoredObjects is called one time when calling uploadDirectory, but should not be called again when calling refreshDirectoriesOrStoredObjects
+	        Mockito.verify(callback, Mockito.times(1)).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), Mockito.anyCollectionOf(StoredObject.class));
+	        //Mockito.verify(callback, Mockito.never()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), Mockito.anyCollectionOf(StoredObject.class));
+        }
+        catch (IOException e) 
+        {
+        	logger.error ("Error occurred in shouldRefreshEmptyDirectoriesOrStoredObjectsWithParent", e) ;
+        	assertFalse(true) ;
+		}	
+    }
+    
+    
+    @Test
+    public void shouldRefreshDirectoriesOrStoredObjectsWithParent() 
+    {
+        try
+        {  
+	        Container container = account.getContainer("x").create() ;
+	        
+	        final String directoryName = "directory" ;
+	        final String subDirectoryName = "subdirectory" ;
+	        
+	        final int numberOfFiles = 10 ;
+
+	        File folder = getTestDirectoryWithFiles (directoryName, "file", numberOfFiles) ;
+	        File subfolder = getTestDirectoryWithFiles (subDirectoryName, "fileInSubfolder", numberOfFiles) ;	        
+	        Files.move(Paths.get(subfolder.getPath()), Files.createDirectories(Paths.get(folder.getPath() + File.separator + subDirectoryName)), StandardCopyOption.REPLACE_EXISTING) ;
+	        
+	        ops.uploadDirectory(container, null, folder, true, callback);
+	        
+	        // verify that the uploaded files are correctly listed
+	    	@SuppressWarnings({ "unchecked", "rawtypes" })
+			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
+	    
+	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
+
+	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
+	        
+	        // this collection should have numberOfFiles + 1 files
+	        assertTrue(argument.getValue().size() == numberOfFiles + 1) ;
+        }
+        catch (IOException e) 
+        {
+        	logger.error ("Error occurred in shouldRefreshDirectoriesOrStoredObjectsWithParent", e) ;
+        	assertFalse(true) ;
+		}
     }
 }

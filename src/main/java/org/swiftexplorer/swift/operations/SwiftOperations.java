@@ -41,6 +41,7 @@ import java.util.List;
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
 
 public interface SwiftOperations {
@@ -300,4 +301,13 @@ public interface SwiftOperations {
      * @param callback the callback to call.
      */
     void deleteDirectory(Container container, StoredObject storedObject, SwiftCallback callback);
+    
+    
+    /**
+     * refreshes the directories and stored object list in the given container under the given parent.
+     * @param container the container.
+     * @param parent the parent directory.
+     * @param callback the callback to call when done.
+     */
+    void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback);
 }

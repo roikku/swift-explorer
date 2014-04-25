@@ -86,6 +86,8 @@ import org.javaswift.joss.instructions.SegmentationPlan;
 import org.javaswift.joss.instructions.UploadInstructions;
 import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.Directory;
+import org.javaswift.joss.model.DirectoryOrObject;
 import org.javaswift.joss.model.PaginationMap;
 import org.javaswift.joss.model.StoredObject;
 import org.slf4j.Logger;
@@ -102,7 +104,6 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
     private volatile boolean useCustomSegmentation = false ;
     private volatile long segmentationSize = 104857600 ; // 100MB
-    
     
     public SwiftOperationsImpl() {
     	super () ;
@@ -757,7 +758,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     private void reloadContainer(Container container, SwiftCallback callback, boolean showProgress) {
     	
     	if (container == null)
-    		return ;
+    		throw new AssertionError ("container cannot be null") ;
     	
     	container.reload();
     	
@@ -781,6 +782,56 @@ public class SwiftOperationsImpl implements SwiftOperations {
         	
             callback.onAppendStoredObjects(container, page++, list);
             list = (List<StoredObject>) container.list("", list.get(list.size() - 1).getName(), MAX_PAGE_SIZE);
+        }
+    }
+    
+    
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback) {
+		
+		CheckAccount () ;
+		
+		loadContainerDirectory (container, parent, callback) ;
+		callback.onNumberOfCalls(account.getNumberOfCalls());
+	}
+	
+	
+    private void loadContainerDirectory(Container container, Directory parent, SwiftCallback callback) 
+    {
+    	if (container == null)
+    		throw new AssertionError ("container cannot be null") ;
+    	
+    	final String prefix ;
+    	Character delimiter = SwiftUtils.separator.charAt(0) ;
+    	List<DirectoryOrObject> directoriesOrObjects = new ArrayList<DirectoryOrObject> () ;
+    	if (parent == null)
+    	{
+    		callback.onNewStoredObjects();
+    		prefix = "" ;
+    	}
+    	else
+    		prefix = parent.getName() + delimiter ;
+    	
+    	int page = 0;
+    	directoriesOrObjects.addAll(container.listDirectory(prefix, delimiter, null, MAX_PAGE_SIZE)) ;
+        while (!directoriesOrObjects.isEmpty()) 
+        {	        	
+        	List<StoredObject> listStoredObjects = new ArrayList<StoredObject> (directoriesOrObjects.size()) ;
+        	for (DirectoryOrObject dirOrobj : directoriesOrObjects)
+        	{
+        		if (dirOrobj == null)
+        			continue ;
+        		if (dirOrobj.isObject())
+        			listStoredObjects.add(dirOrobj.getAsObject()) ;
+        	}
+            callback.onAppendStoredObjects(container, page++, listStoredObjects);
+            
+            String marker = directoriesOrObjects.get(directoriesOrObjects.size() - 1).getName() ;
+            directoriesOrObjects.clear () ;
+            directoriesOrObjects.addAll(container.listDirectory(prefix, delimiter, marker, MAX_PAGE_SIZE)) ;
         }
     }
     
@@ -836,7 +887,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				return true ; 
 			else
 			{
-				logger.info("file '{}' already exists on the cloud, but differs. it has been {}", path.toString(), (overwrite)?("overwritten"):("ignored"));
+				logger.info("A different version of the file '{}' already exists in the cloud. it has been {}", path.toString(), (overwrite)?("overwritten"):("ignored"));
 				if (overwrite)
 					return true ;
 			}
@@ -853,7 +904,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		double progress = currentUplodedFilesCount / (double)totalFiles ;
 		BasicFileAttributes attr = FileUtils.getFileAttr(currentFile) ;
 		progInfo.setTotalProgress(progress);
-		progInfo.setTotalMessage(String.format("%d / %d files processed (current file size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(attr.size(),  true)));
+		progInfo.setTotalMessage(String.format("%d / %d files processed (current file size: %s)", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(attr.size(),  true)));
 		
 		if (report)
 			progInfo.report();
@@ -867,7 +918,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		// Progress notification
 		double progress = currentUplodedFilesCount / (double)totalFiles ;
 		progInfo.setTotalProgress(progress);
-		progInfo.setTotalMessage(String.format("%d / %d objects processed (current object size: %s).", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(so.getContentLength(),  true)));
+		progInfo.setTotalMessage(String.format("%d / %d objects processed (current object size: %s)", currentUplodedFilesCount, totalFiles, FileUtils.humanReadableByteCount(so.getContentLength(),  true)));
 		
 		if (report)
 			progInfo.report();
@@ -1034,6 +1085,9 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	}
 
 
+    /**
+     * {@inheritDoc}.
+     */
 	@Override
 	public synchronized void deleteDirectory(Container container, StoredObject storedObject, SwiftCallback callback) {
 		
