@@ -884,11 +884,14 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			// TODO: check other information in order to increase the confidence that the file is the same. 
 			// ...
 			if (etag != null && etag.equals(md5))
+			{
+				logger.info("The file '{}' already exists in the cloud.", path.toString());
 				return true ; 
+			}
 			else
 			{
 				logger.info("A different version of the file '{}' already exists in the cloud. it has been {}", path.toString(), (overwrite)?("overwritten"):("ignored"));
-				if (overwrite)
+				if (!overwrite)
 					return true ;
 			}
 		}
