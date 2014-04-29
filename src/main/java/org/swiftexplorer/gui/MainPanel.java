@@ -1476,7 +1476,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(lastFolder);
         if (objList.size() == 1) {
-            chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+            //chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+            chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
             // set the default value
             StoredObject obj = objList.iterator().next() ;
             if (obj != null && obj.getName() != null && !obj.getName().isEmpty())
