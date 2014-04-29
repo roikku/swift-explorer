@@ -36,13 +36,13 @@ import static org.junit.Assert.assertTrue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.swiftexplorer.TestUtils;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -68,6 +68,9 @@ public class SwiftOperationsTest {
 
 	final Logger logger = LoggerFactory.getLogger(SwiftOperationsTest.class);
 	
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
+    
     private SwiftOperations ops;
     private SwiftCallback callback;
     private Account account;
@@ -258,33 +261,6 @@ public class SwiftOperationsTest {
     }
     
     
-    @Rule
-    public TemporaryFolder tmpFolder = new TemporaryFolder();
-    
-    
-    private File getTestFile (String fileName, long fileSize) throws IOException
-    {
-        byte data [] = new byte[(int) fileSize] ;
-        for (int i = 0 ; i < fileSize ; ++i)
-        	data[i] = (byte)(Math.random() * 256) ;
-
-        File file = tmpFolder.newFile(fileName) ;
-        
-    	// generate test file
-    	FileOutputStream out = new FileOutputStream(file);
-      	out.write(data);
-    	out.close();
-        
-        return file ;
-    }
-    
-    
-    private long getNumberOfSegments (long fileSize, long segmentSize)
-    {
-    	return fileSize / segmentSize + (long)((fileSize % segmentSize == 0)?(0):(1)) ;
-    }
-    
-    
     @Test
     public void shouldCreateSegments() {
     	
@@ -292,7 +268,7 @@ public class SwiftOperationsTest {
     	final long fileSize = 8192 ;
     	final String fileName = "segmentationTest.dat" ;
     	
-		final long numSegments = getNumberOfSegments (fileSize, segmentSize) ;
+		final long numSegments = TestUtils.getNumberOfSegments (fileSize, segmentSize) ;
     	
     	SwiftOperations ops = getCustomSegmentationSizeSwiftOperations (segmentSize) ;
         Account acc = ((SwiftOperationsImpl)ops).getAccount() ;
@@ -304,7 +280,7 @@ public class SwiftOperationsTest {
         File file = null ;
         try
         {         
-        	file = getTestFile (fileName, fileSize) ;
+        	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	
         	// upload it
         	ops.uploadFiles(container, null, new File[] {file}, true, callback);
@@ -348,7 +324,7 @@ public class SwiftOperationsTest {
         try
         {        
         	// get test file
-        	file = getTestFile (fileName, fileSize) ;
+        	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	      
         	// upload it
         	ops.uploadFiles(container, null, new File[] {file}, true, callback);
@@ -384,7 +360,7 @@ public class SwiftOperationsTest {
     	final long fileSize = 8192 ;
     	final String fileName = "segmentationTest.dat" ;
     	
-    	final long numSegments = getNumberOfSegments (fileSize, segmentSize) ;
+    	final long numSegments = TestUtils.getNumberOfSegments (fileSize, segmentSize) ;
     	
     	SwiftOperations ops = getCustomSegmentationSizeSwiftOperations (segmentSize) ;
         Account acc = ((SwiftOperationsImpl)ops).getAccount() ;
@@ -396,7 +372,7 @@ public class SwiftOperationsTest {
         File file = null ;
         try
         {        
-        	file = getTestFile (fileName, fileSize) ;
+        	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	
         	// upload it
         	ops.uploadFiles(container, null, new File[] {file}, true, callback);
@@ -428,33 +404,6 @@ public class SwiftOperationsTest {
     }
     
     
-    private File getTestDirectoryWithFiles (String directoryName, String fileNamePrefix, int numberOfFiles) throws IOException
-    {
-    	assert (numberOfFiles >= 0) ;
-    	
-        File folder = tmpFolder.newFolder(directoryName) ;
-        
-        if (numberOfFiles == 0)
-        	return folder ;
-        
-        // We upload some files
-        StringBuilder fileNameBase = new StringBuilder () ;
-        fileNameBase.append(directoryName) ;
-        fileNameBase.append(File.separator) ;
-        fileNameBase.append(fileNamePrefix) ;
-        fileNameBase.append("_") ;
-        
-        File [] fileList = new File [numberOfFiles] ;
-        for (int i = 0 ; i < numberOfFiles ; ++i)
-        {
-        	final String fileName = fileNameBase.toString() + i ;
-        	fileList[i] = getTestFile (fileName, (long) (Math.random() * 1000 + 1)) ;
-        }
-        
-        return folder ;
-    }
-    
-    
     @Test
     public void shouldRefreshDirectoriesOrStoredObjectsWithoutParent() 
     {
@@ -464,7 +413,7 @@ public class SwiftOperationsTest {
 	        
 	        final String directoryName = "directory" ;
 
-	        File folder = getTestDirectoryWithFiles (directoryName, "file", 10) ;
+	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "file", 10) ;
 	        ops.uploadDirectory(container, null, folder, true, callback);
 	        
 	        // verify that the uploaded files are correctly listed
@@ -499,7 +448,7 @@ public class SwiftOperationsTest {
 	        
 	        final String directoryName = "directory" ;
 
-	        File folder = getTestDirectoryWithFiles (directoryName, "", 0) ;
+	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "", 0) ;
  
 	        ops.uploadDirectory(container, null, folder, true, callback);
 
@@ -531,8 +480,8 @@ public class SwiftOperationsTest {
 	        
 	        final int numberOfFiles = 10 ;
 
-	        File folder = getTestDirectoryWithFiles (directoryName, "file", numberOfFiles) ;
-	        File subfolder = getTestDirectoryWithFiles (subDirectoryName, "fileInSubfolder", numberOfFiles) ;	        
+	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "file", numberOfFiles) ;
+	        File subfolder = TestUtils.getTestDirectoryWithFiles (tmpFolder, subDirectoryName, "fileInSubfolder", numberOfFiles) ;	        
 	        Files.move(Paths.get(subfolder.getPath()), Files.createDirectories(Paths.get(folder.getPath() + File.separator + subDirectoryName)), StandardCopyOption.REPLACE_EXISTING) ;
 	        
 	        ops.uploadDirectory(container, null, folder, true, callback);
@@ -552,6 +501,58 @@ public class SwiftOperationsTest {
         catch (IOException e) 
         {
         	logger.error ("Error occurred in shouldRefreshDirectoriesOrStoredObjectsWithParent", e) ;
+        	assertFalse(true) ;
+		}
+    }
+    
+    
+    private void uploadAndOverwrite (boolean overwrite) throws IOException
+    {
+    	final String objName = "testObject.dat" ;
+    	
+        Container container = account.getContainer("x").create();
+        StoredObject object = container.getObject(objName);
+        object.uploadObject(TestUtils.getTestFile(tmpFolder, objName, 4096));
+
+        assertTrue (object.exists()) ;
+        String md5 = object.getEtag() ;
+        
+        // upload a new file with the same name, the overwrite flag is set to overwrite
+        ops.uploadFiles(container, null, new File [] {TestUtils.getTestFile(tmpFolder, objName, 4096)}, overwrite, callback);
+        
+        StoredObject newObject = container.getObject(objName);
+        assertTrue (newObject.exists()) ;
+        
+        // we assume no collision ;-)
+        assertTrue (md5.equals(newObject.getEtag()) == !overwrite) ;
+    }
+    
+    
+    @Test
+    public void shouldNotOverwiteObject () 
+    {
+        try
+        {  
+        	uploadAndOverwrite (false) ;
+        }
+        catch (IOException e) 
+        {
+        	logger.error ("Error occurred in shouldNotOverwiteObject", e) ;
+        	assertFalse(true) ;
+		}
+    }
+    
+    
+    @Test
+    public void shouldOverwiteObject () 
+    {
+        try
+        {  
+        	uploadAndOverwrite (true) ;
+        }
+        catch (IOException e) 
+        {
+        	logger.error ("Error occurred in shouldOverwiteObject", e) ;
         	assertFalse(true) ;
 		}
     }

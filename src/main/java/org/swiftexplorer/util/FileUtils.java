@@ -66,11 +66,11 @@ public class FileUtils {
 		try
 		{
 			his = new com.google.common.hash.HashingInputStream (Hashing.md5(), in) ;
-			final int bufferSize = 32 * 1024 ;
+			final int bufferSize = 2097152 ; //1048576 ; //64 * 1024 ;
 			byte[] bytesBuffer = new byte[bufferSize] ;
-			int r = in.read(bytesBuffer, 0, bufferSize) ;
+			int r = his.read(bytesBuffer, 0, bufferSize) ;
 			while (r != -1)
-				r = in.read(bytesBuffer) ;
+				r = his.read(bytesBuffer) ;
 			HashCode hc = his.hash() ;
 			return (hc != null) ? (hc.toString()) : (null) ;
 		}
