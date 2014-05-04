@@ -174,6 +174,8 @@ public class SwiftPanel extends JPanel {
     
     private boolean si = false ;
     
+    private final int unit = 10485760; // 10MB
+    
     public SwiftPanel(SwiftSettingsCallback callback, HasSwiftSettings swiftSettings, HasLocalizedStrings stringsBundle) {
         super(new BorderLayout(0, 0));
         
@@ -240,7 +242,7 @@ public class SwiftPanel extends JPanel {
     		segmentationSizeTf.setFont(segmentationSizeSlider.getComponent().getFont());
     	
     	long range = SwiftParameters.MAX_SEGMENTATION_SIZE - SwiftParameters.MIN_SEGMENTATION_SIZE ;
-    	segmentationSizeSlider.setExtent(100);
+    	segmentationSizeSlider.setExtent(unit); 
         segmentationSizeSlider.setMajorTickSpacing(range / 8);
         segmentationSizeSlider.setPaintTicks(true);
         
@@ -315,9 +317,16 @@ public class SwiftPanel extends JPanel {
         	showInvalidSegmentationSizeDlg () ;
         	return ;
         }*/
-        long segmentationSize = segmentationSizeSlider.getValue() ;
+        long segmentationSize = roundToNearestUnit (segmentationSizeSlider.getValue()) ;
+        
         SwiftParameters.Builder paramBuilder = new SwiftParameters.Builder (segmentationSize, hideSegmentsContainer.isSelected()) ;
     	callback.setSwiftParameters(paramBuilder.build());
+    }
+    
+    
+    private long roundToNearestUnit (long val)
+    {
+    	return ((val + unit / 2) / unit) * unit ;
     }
     
     
