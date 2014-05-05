@@ -120,4 +120,13 @@ public class CloudieCallbackWrapper implements SwiftCallback {
 			double currentProgress, String currentMsg) {
 		this.target.onProgress(totalProgress, totalMsg, currentProgress, currentMsg);
 	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public void onStopped() {
+		this.target.onStopped();
+	}
 }

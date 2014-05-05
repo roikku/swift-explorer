@@ -34,6 +34,7 @@ package org.swiftexplorer.swift.operations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.swiftexplorer.gui.util.AsyncWrapper;
+import org.swiftexplorer.gui.util.SwiftOperationStopRequesterImpl;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 
@@ -55,6 +56,8 @@ public class SwiftOperationsAsyncTest {
     private SwiftCallback callback;
     private Account account;
     private AccountConfig accConf ;
+    
+    private SwiftOperationStopRequesterImpl stopRequester = new SwiftOperationStopRequesterImpl () ;
 
     @Before
     public void init() {
@@ -78,7 +81,7 @@ public class SwiftOperationsAsyncTest {
     public void shouldSignalCommandException() throws InterruptedException {
     	try
     	{
-	        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, callback); // container
+	        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, stopRequester, callback); // container
 	                                                                                                          // does
 	                                                                                                          // not
 	                                                                                                          // exist.

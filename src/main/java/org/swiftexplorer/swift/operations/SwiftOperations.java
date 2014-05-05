@@ -45,6 +45,7 @@ import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
 
 public interface SwiftOperations {
+	
 	  /**
      * callback interface, SwiftOperations will use this to notify the user
      * interface of updates.
@@ -129,7 +130,21 @@ public interface SwiftOperations {
          * @param currentMsg, and arbitrary message
          */
         void onProgress(double totalProgress, String totalMsg, double currentProgress, String currentMsg);
+        
+        /**
+         * signals that an operation has been stopped, possibly before it was complete.
+         */
+        void onStopped();
     }
+    
+    
+	/**
+	 * StopRequestor interface, the client of SwiftOperations uses this to
+	 * notify the task to stop
+	 */
+	public interface StopRequester {
+		public boolean isStopRequested();
+	}
 
     
     /**
@@ -194,9 +209,10 @@ public interface SwiftOperations {
      * @param container the container to store in.
      * @param file the file(s) to upload.
      * @param callback the callback to call when done.
+     * @param stopRequester to stop the task
      * @throws IOException 
      */
-    void createStoredObjects(Container container, File[] file, SwiftCallback callback) throws IOException;
+    void createStoredObjects(Container container, File[] file, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
     /**
      * deletes a container and all files in it.
@@ -209,32 +225,36 @@ public interface SwiftOperations {
      * deletes a single stored object.
      * @param container the container holding the object.
      * @param storedObject the object.
+     * @param stopRequester to stop the task
      * @param callback the callback to call.
      */
-    void deleteStoredObjects(Container container, List<StoredObject> storedObject, SwiftCallback callback);
+    void deleteStoredObjects(Container container, List<StoredObject> storedObject, StopRequester stopRequester, SwiftCallback callback);
 
     /**
      * downloads a stored object into a file.
      * @param container the container.
      * @param storedObject the stored object to download.
      * @param target the target file.
+     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
-    void downloadStoredObject(Container container, StoredObject storedObject, File target, SwiftCallback callback) throws IOException;
+    void downloadStoredObject(Container container, StoredObject storedObject, File target, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
     /**
      * purges a container, deleting all files and the container.
      * @param container the container
+     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
-    void purgeContainer(Container container, SwiftCallback callback);
+    void purgeContainer(Container container, StopRequester stopRequester, SwiftCallback callback);
 
     /**
      * empties a container, deleting all files but not the container.
      * @param c the container
+     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
-    void emptyContainer(Container c, SwiftCallback callback);
+    void emptyContainer(Container c, StopRequester stopRequester, SwiftCallback callback);
 
     /**
      * refreshes the container list.
@@ -269,9 +289,10 @@ public interface SwiftOperations {
      * @param container the container to store in.
      * @param parentObject the parent of the folder.
      * @param directory the directory to upload.
+     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
-	void uploadDirectory(Container container, StoredObject parentObject, File directory, boolean overwriteAll, SwiftCallback callback) throws IOException;
+	void uploadDirectory(Container container, StoredObject parentObject, File directory, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
 	
     /**
@@ -279,9 +300,10 @@ public interface SwiftOperations {
      * @param container the container to store in.
      * @param parentObject the "parent" of the new StoredObject.
      * @param file the file(s) to upload.
+     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
-    void uploadFiles(Container container, StoredObject parentObject, File[] files, boolean overwriteAll, SwiftCallback callback) throws IOException;
+    void uploadFiles(Container container, StoredObject parentObject, File[] files, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException;
     
     
     /**
@@ -298,9 +320,10 @@ public interface SwiftOperations {
      * deletes a directory stored object.
      * @param container the container holding the object directory.
      * @param storedObject the object.
+     * @param stopRequester to stop the task
      * @param callback the callback to call.
      */
-    void deleteDirectory(Container container, StoredObject storedObject, SwiftCallback callback);
+    void deleteDirectory(Container container, StoredObject storedObject, StopRequester stopRequester, SwiftCallback callback);
     
     
     /**

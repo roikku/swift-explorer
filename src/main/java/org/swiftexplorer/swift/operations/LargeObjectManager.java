@@ -58,18 +58,19 @@ import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
 
+
 class LargeObjectManager {
 
     final Logger logger = LoggerFactory.getLogger(LargeObjectManager.class);
 
     private final Account account ;
-    private boolean checkExistingSegments = true ;
-    
+    private final boolean checkExistingSegments = true ;
+ 
 	LargeObjectManager (Account account) { 
 		super () ; 
 		this.account = account ;
 	} ;
-	    
+	
     
     // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractStoredObject.java 
     // and adapted here.

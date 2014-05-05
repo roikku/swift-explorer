@@ -37,6 +37,7 @@ import static org.junit.Assert.assertTrue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.swiftexplorer.TestUtils;
+import org.swiftexplorer.gui.util.SwiftOperationStopRequesterImpl;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
@@ -75,6 +76,7 @@ public class SwiftOperationsTest {
     private SwiftCallback callback;
     private Account account;
     private AccountConfig accConf ;
+    private SwiftOperationStopRequesterImpl stopRequester = new SwiftOperationStopRequesterImpl () ;
 
     @Before
     public void init() {
@@ -148,7 +150,7 @@ public class SwiftOperationsTest {
     public void shouldCreateStoredObject() {
     	try
     	{	
-    		ops.createStoredObjects(account.getContainer("x").create(), new File[] { new File("pom.xml") }, callback);
+    		ops.createStoredObjects(account.getContainer("x").create(), new File[] { new File("pom.xml") }, stopRequester, callback);
 		}
 		catch (IOException e)
 		{
@@ -171,7 +173,7 @@ public class SwiftOperationsTest {
         Container create = account.getContainer("x").create();
         StoredObject object = create.getObject("y");
         object.uploadObject(new byte[0]);
-        ops.deleteStoredObjects(create, Collections.singletonList(object), callback);
+        ops.deleteStoredObjects(create, Collections.singletonList(object), stopRequester, callback);
         Mockito.verify(callback, Mockito.atLeastOnce()).onStoredObjectDeleted(Mockito.any(Container.class), Mockito.any(StoredObject.class));
     }
 
@@ -184,7 +186,7 @@ public class SwiftOperationsTest {
         boolean exceptionThrown = false ;
         try
         {
-        	ops.downloadStoredObject(create, object, target, callback);
+        	ops.downloadStoredObject(create, object, target, stopRequester, callback);
         }
         catch (IOException e) 
         {
@@ -204,7 +206,7 @@ public class SwiftOperationsTest {
         StoredObject object = create.getObject("y");
         object.uploadObject(new byte[8192]);
         //
-        ops.emptyContainer(create, callback);
+        ops.emptyContainer(create, stopRequester, callback);
         Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
     }
 
@@ -227,7 +229,7 @@ public class SwiftOperationsTest {
         StoredObject object = create.getObject("y");
         object.uploadObject(new byte[8192]);
         //
-        ops.purgeContainer(create, callback);
+        ops.purgeContainer(create, stopRequester, callback);
         Mockito.verify(callback, Mockito.atLeastOnce()).onUpdateContainers(Mockito.anyListOf(Container.class));
         assertFalse(create.exists());
     }
@@ -283,7 +285,7 @@ public class SwiftOperationsTest {
         	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	
         	// upload it
-        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+        	ops.uploadFiles(container, null, new File[] {file}, true, stopRequester, callback);
   
         	// verify that the segments container has been created 
         	Container containerSegments = acc.getContainer(container.getName() + SwiftUtils.segmentsContainerPostfix);
@@ -327,14 +329,14 @@ public class SwiftOperationsTest {
         	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	      
         	// upload it
-        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+        	ops.uploadFiles(container, null, new File[] {file}, true, stopRequester, callback);
         	
         	// check the object
         	StoredObject object = container.getObject(fileName);
         	assertTrue (object.exists()) ;
 
         	// download object
-        	ops.downloadStoredObject(container, object, target, callback);
+        	ops.downloadStoredObject(container, object, target, stopRequester, callback);
         	assertTrue(target.exists());
         	
         	// verify that the files are identical
@@ -375,7 +377,7 @@ public class SwiftOperationsTest {
         	file = TestUtils.getTestFile (tmpFolder, fileName, fileSize) ;
         	
         	// upload it
-        	ops.uploadFiles(container, null, new File[] {file}, true, callback);
+        	ops.uploadFiles(container, null, new File[] {file}, true, stopRequester, callback);
   
         	// verify that the segments container has been created 
         	Container containerSegments = acc.getContainer(container.getName() + SwiftUtils.segmentsContainerPostfix);
@@ -389,7 +391,7 @@ public class SwiftOperationsTest {
         	assertTrue (object.exists()) ;
         	
         	// delete the object
-        	ops.deleteStoredObjects(container, Arrays.asList(object), callback) ;
+        	ops.deleteStoredObjects(container, Arrays.asList(object), stopRequester, callback) ;
         	Mockito.verify(callback, Mockito.times(1)).onStoredObjectDeleted(container, object);
         	
         	// verify the number of segments is now zero
@@ -414,7 +416,7 @@ public class SwiftOperationsTest {
 	        final String directoryName = "directory" ;
 
 	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "file", 10) ;
-	        ops.uploadDirectory(container, null, folder, true, callback);
+	        ops.uploadDirectory(container, null, folder, true, stopRequester, callback);
 	        
 	        // verify that the uploaded files are correctly listed
 	    	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -450,7 +452,7 @@ public class SwiftOperationsTest {
 
 	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "", 0) ;
  
-	        ops.uploadDirectory(container, null, folder, true, callback);
+	        ops.uploadDirectory(container, null, folder, true, stopRequester, callback);
 
 	        // verify that the uploaded files are correctly listed
 	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
@@ -484,7 +486,7 @@ public class SwiftOperationsTest {
 	        File subfolder = TestUtils.getTestDirectoryWithFiles (tmpFolder, subDirectoryName, "fileInSubfolder", numberOfFiles) ;	        
 	        Files.move(Paths.get(subfolder.getPath()), Files.createDirectories(Paths.get(folder.getPath() + File.separator + subDirectoryName)), StandardCopyOption.REPLACE_EXISTING) ;
 	        
-	        ops.uploadDirectory(container, null, folder, true, callback);
+	        ops.uploadDirectory(container, null, folder, true, stopRequester, callback);
 	        
 	        // verify that the uploaded files are correctly listed
 	    	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -518,7 +520,7 @@ public class SwiftOperationsTest {
         String md5 = object.getEtag() ;
         
         // upload a new file with the same name, the overwrite flag is set to overwrite
-        ops.uploadFiles(container, null, new File [] {TestUtils.getTestFile(tmpFolder, objName, 4096)}, overwrite, callback);
+        ops.uploadFiles(container, null, new File [] {TestUtils.getTestFile(tmpFolder, objName, 4096)}, overwrite, stopRequester, callback);
         
         StoredObject newObject = container.getObject(objName);
         assertTrue (newObject.exists()) ;
@@ -555,5 +557,169 @@ public class SwiftOperationsTest {
         	logger.error ("Error occurred in shouldOverwiteObject", e) ;
         	assertFalse(true) ;
 		}
+    }
+    
+    
+    @Test
+    public void shouldStopUploadingFiles ()
+    {
+    	final String objName = "testObject.dat" ;
+        Container container = account.getContainer("x").create();
+        try 
+        {
+        	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+        	stopReq.stop();
+			ops.uploadFiles(container, null, new File [] {TestUtils.getTestFile(tmpFolder, objName, 4096)}, false, stopReq, callback);
+			Mockito.verify(callback, Mockito.times(1)).onStopped();
+		} 
+        catch (IOException e) 
+		{
+        	logger.error ("Error occurred in shouldStopUploadingFiles", e) ;
+        	assertFalse(true) ;
+		}  
+    }
+    
+    
+    @Test
+    public void shouldStopDeletingDirectory ()
+    {
+    	final String dirName = "dir" ;
+        Container container = account.getContainer("x").create();
+        
+    	ops.createDirectory(container, null, dirName, callback);
+    	
+    	StoredObject obj = container.getObject(dirName) ;
+    	assertTrue (obj.exists()) ;
+    	
+    	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+    	stopReq.stop();
+		ops.deleteDirectory(container, obj, stopReq, callback);
+		Mockito.verify(callback, Mockito.times(1)).onStopped();
+    }
+    
+    
+    @Test
+    public void shouldStopUploadingDirectory ()
+    {
+    	final String directoryName = "directory" ;
+        Container container = account.getContainer("x").create();
+        try 
+        {
+        	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+        	stopReq.stop();
+        	
+	        File folder = TestUtils.getTestDirectoryWithFiles (tmpFolder, directoryName, "file", 10) ;
+	        ops.uploadDirectory(container, null, folder, true, stopReq, callback);     
+       		Mockito.verify(callback, Mockito.times(1)).onStopped();
+		} 
+        catch (IOException e) 
+		{
+        	logger.error ("Error occurred in shouldStopUploadingDirectory", e) ;
+        	assertFalse(true) ;
+		}  
+    }
+    
+    
+    @Test
+    public void shouldStopDownloadingStoredObject ()
+    {
+        Container container = account.getContainer("x").create();
+        StoredObject object = container.getObject("y");
+        object.uploadObject(new byte[100]);
+        
+    	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+    	stopReq.stop();
+    	
+    	try 
+    	{
+			ops.downloadStoredObject(container, object, tmpFolder.newFile(), stopReq, callback);
+			Mockito.verify(callback, Mockito.times(1)).onStopped();
+		} 
+    	catch (IOException e) 
+    	{
+        	logger.error ("Error occurred in shouldStopDownloadingStoredObject", e) ;
+        	assertFalse(true) ;
+		}	
+    }
+    
+    
+    @Test
+    public void shouldStopDownloadingDirectory ()
+    {
+    	final String directoryName = "directory" ;
+    	
+        Container container = account.getContainer("x").create();       
+        
+        ops.createDirectory(container, null, directoryName, callback);
+        StoredObject objectDir = container.getObject(directoryName);
+        assertTrue (objectDir.exists()) ;
+        
+        StoredObject object = container.getObject(directoryName + SwiftUtils.separator + "y");
+        object.uploadObject(new byte[100]);
+        assertTrue (object.exists()) ;
+        
+    	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+    	stopReq.stop();
+    	
+    	try 
+    	{	
+			ops.downloadStoredObject(container, objectDir, tmpFolder.newFolder(), stopReq, callback);
+			Mockito.verify(callback, Mockito.times(1)).onStopped();
+		} 
+    	catch (IOException e) 
+    	{
+        	logger.error ("Error occurred in shouldStopDownloadingDirectory", e) ;
+        	assertFalse(true) ;
+		}	
+    }
+    
+    
+    @Test(expected = AssertionError.class)
+    public void shouldNotDownloadStoredObject() 
+    {
+    	final String directoryName = "directory" ;
+        Container container = account.getContainer("x").create();  
+        
+        ops.createDirectory(container, null, directoryName, callback);
+        StoredObject objectDir = container.getObject(directoryName);
+        assertTrue (objectDir.exists()) ;
+        
+        try 
+        {
+			ops.downloadStoredObject(container, objectDir, tmpFolder.newFile(), null, callback);
+		} 
+        catch (IOException e) 
+		{
+        	logger.error ("Error occurred in shouldNotDownloadStoredObject", e) ;
+        	assertFalse(true) ;
+		}
+    }
+    
+    
+    @Test
+    public void shouldStopPurgingContainer ()
+    {
+    	Container container = account.getContainer("x").create();
+        StoredObject object = container.getObject("y");
+        object.uploadObject(new byte[100]);
+        
+    	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+    	stopReq.stop();
+    	ops.purgeContainer(container, stopReq, callback);
+    	Mockito.verify(callback, Mockito.times(1)).onStopped();
+    }
+    
+    
+    @Test
+    public void shouldStopEmptyingContainer ()
+    {
+    	Container container = account.getContainer("x").create();
+        StoredObject object = container.getObject("y");
+        object.uploadObject(new byte[100]);
+        
+    	SwiftOperationStopRequesterImpl stopReq = new SwiftOperationStopRequesterImpl () ;
+    	stopReq.stop();
+    	ops.emptyContainer(container, stopReq, callback);
+    	Mockito.verify(callback, Mockito.times(1)).onStopped();
     }
 }

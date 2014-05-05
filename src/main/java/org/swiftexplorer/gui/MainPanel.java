@@ -66,6 +66,7 @@ import org.swiftexplorer.gui.util.GuiTreadingUtils;
 import org.swiftexplorer.gui.util.LabelComponentPanel;
 import org.swiftexplorer.gui.util.PopupTrigger;
 import org.swiftexplorer.gui.util.ReflectionAction;
+import org.swiftexplorer.gui.util.SwiftOperationStopRequesterImpl;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.ContainerSpecification;
@@ -188,6 +189,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final JButton progressButton = new JButton() ;
     private final ProgressPanel progressPanel = new ProgressPanel () ;
     
+    private final JButton stopButton = new JButton() ;
+    
     private final JTabbedPane objectViewTabbedPane = new JTabbedPane ();
     @SuppressWarnings("unused")
 	private final int treeviewTabIndex ;
@@ -229,11 +232,13 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private Action searchAction = null ;
     
     private Action progressButtonAction = null ;
+    private Action stopButtonAction = null ;
 
     private JFrame owner;
 
     private final SwiftOperations ops;
     private SwiftOperations.SwiftCallback callback;
+    private volatile SwiftOperationStopRequesterImpl stopRequester = null ;
     private PreviewPanel previewPanel = new PreviewPanel();
     private StatusPanel statusPanel;
     private boolean loggedIn;
@@ -389,6 +394,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         progressButton.setEnabled(false);
         progressButton.setToolTipText(getLocalizedString("Show_Progress"));
         
+        
+        stopButton.setAction(stopButtonAction) ;
+        //stopButton.setEnabled(false);
+        stopButton.setToolTipText(getLocalizedString("Stop"));
+        
         //
         createLists();
         //
@@ -447,6 +457,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         toolBar.addSeparator();
         toolBar.add(progressButton) ;
         
+        toolBar.addSeparator();
+        toolBar.add(stopButton) ;
+        
         //if (nativeMacOsX)
         	addSearchPanel (toolBar) ;
         
@@ -494,6 +507,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         searchAction = new ReflectionAction<MainPanel>(getLocalizedString("Search"), null, this, "onSearch");
     
         progressButtonAction = new ReflectionAction<MainPanel>("", getIcon("progressbar.png"), this, "onProgressButton");
+        
+        stopButtonAction = new ReflectionAction<MainPanel>("", getIcon("stop.png"), this, "onStop");
     }
     
     
@@ -729,6 +744,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         enableDisableContainerMenu();
         enableDisableStoredObjectMenu();
         enableSettingMenu() ;
+        enableOperationMenu () ;
     }
 
     
@@ -745,6 +761,13 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	settingSwiftAction.setEnabled(!loggedIn);
     }
 
+    public void enableOperationMenu() {
+    	
+    	boolean isBusy = busyCnt.get() > 0 ;
+    	boolean isStoppable = (stopRequester != null && !stopRequester.isStopRequested()) ;
+    	
+    	stopButtonAction.setEnabled(loggedIn && isBusy && isStoppable);
+    }
     
     public void enableDisableContainerMenu() {
         boolean containerSelected = isContainerSelected();
@@ -1185,7 +1208,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         String msg = MessageFormat.format (getLocalizedString("confirm_msg_purging_container"), c.getName()) ;
         if (confirm(msg)) {
-            ops.purgeContainer(c, callback);   
+            ops.purgeContainer(c, getNewSwiftStopRequester(), callback);   
             clearStoredObjectViews () ;
         }
     }
@@ -1196,7 +1219,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         String msg = MessageFormat.format (getLocalizedString("confirm_msg_empty_container"), c.getName()) ;
         if (confirm(msg)) {
-            ops.emptyContainer(c, callback);
+            ops.emptyContainer(c, getNewSwiftStopRequester(), callback);
         }
     }
 
@@ -1404,7 +1427,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
 
     
-    protected void onPreviewStoredObject() {
+    protected void onPreviewStoredObject() {    	
         StoredObject obj = single(getSelectedStoredObjects());
         if (obj.getContentLength() < 16 * 1024 * 1024) {
             previewPanel.preview(obj.getContentType(), obj.downloadObject());
@@ -1524,7 +1547,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private void doSaveStoredObject(File target, Container container, StoredObject obj) {    	
         try 
         {
-			ops.downloadStoredObject(container, obj, target, callback);
+        	boolean stoppable = SwiftUtils.isDirectory(obj) && target.isDirectory() ;
+			ops.downloadStoredObject(container, obj, target, (stoppable) ? (getNewSwiftStopRequester()) : (null), callback);
 		} 
         catch (IOException e) 
         {
@@ -1548,12 +1572,22 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
     
     
+    private SwiftOperationStopRequesterImpl getNewSwiftStopRequester ()
+    {
+    	if (stopRequester != null) 
+    		throw new IllegalStateException () ;
+    	stopRequester = new SwiftOperationStopRequesterImpl () ;
+    	return stopRequester ;
+    }
+    
+    
     protected void doDeleteObjectDirectory(Container container, StoredObject obj) {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_one_directory_delete_from_container"), obj.getName(), container.getName()) ;
         if (confirm(msg)) {
         	onProgressButton () ;
-        	ops.deleteDirectory(container, obj, callback) ;
+        	
+        	ops.deleteDirectory(container, obj, getNewSwiftStopRequester (), callback) ;
         }
     }
     
@@ -1573,7 +1607,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_one_file_delete_from_container"), obj.getName(), container.getName()) ;
         if (confirm(msg)) {
-            ops.deleteStoredObjects(container, Collections.singletonList(obj), callback);
+            ops.deleteStoredObjects(container, Collections.singletonList(obj), getNewSwiftStopRequester(), callback);
         }
     }
 
@@ -1583,7 +1617,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	String msg = MessageFormat.format (getLocalizedString("confirm_many_files_delete_from_container"), String.valueOf(obj.size()), container.getName()) ;
     	if (confirm(msg)) {
     		onProgressButton () ;
-            ops.deleteStoredObjects(container, obj, callback);
+            ops.deleteStoredObjects(container, obj, getNewSwiftStopRequester(), callback);
         }
     }
 
@@ -1615,7 +1649,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             		if (!confirm(getLocalizedString("confirm_overwrite_any_existing_files")))
             			return ;
             	}
-				ops.uploadFiles(container, parentObject, selectedFiles, overwriteAll, callback);
+				ops.uploadFiles(container, parentObject, selectedFiles, overwriteAll, getNewSwiftStopRequester (), callback);
 				
 				// We open the progress window, for it is likely that this operation
 				// will take a while
@@ -1765,7 +1799,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             		if (!confirm(getLocalizedString("confirm_overwrite_any_existing_files")))
             			return ;
             	}
-				ops.uploadDirectory(container, parentObject, selectedDir, overwriteAll, callback);
+				ops.uploadDirectory(container, parentObject, selectedDir, overwriteAll, getNewSwiftStopRequester (), callback);
 				
 				// We open the progress window, for it is likely that this operation
 				// will take a while
@@ -1845,6 +1879,17 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
     
     
+    public void onStop ()
+    {
+    	if (stopRequester != null)
+    	{
+    		if (confirm (getLocalizedString("confirm_stop_operation")))
+    			stopRequester.stop() ;
+    		enableOperationMenu() ;
+    	}
+    }
+    
+    
     public void onSearch() {
         storedObjects.clear();
         synchronized (allStoredObjects)
@@ -1910,6 +1955,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             if (progressWindow != null)
             	progressWindow.setVisible(false) ;
         }
+        stopRequester = null ;
         enableDisable();
     }
 
@@ -2009,9 +2055,28 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
      * {@inheritDoc}.
      */
 	@Override
-	public void onProgress(final double totalProgress, final String totalMsg, final double currentProgress, final String currentMsg) {
+	public void onProgress(final double totalProgress, String totalMsg, final double currentProgress, final String currentMsg) {
 
+		if (stopRequester != null && stopRequester.isStopRequested())
+		{
+			StringBuilder sb = new StringBuilder () ;
+			sb.append ("<html>") ;
+			sb.append (totalMsg) ;
+			sb.append ("<font color=red><b> (is stopping...)</b></font>") ;
+			sb.append ("</html>") ;
+			totalMsg = sb.toString() ;
+		}
 		progressPanel.setProgress(totalProgress, totalMsg, currentProgress, currentMsg);
+	}
+	
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public void onStopped() {
+
 	}
 	
 

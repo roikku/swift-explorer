@@ -97,6 +97,8 @@ public class ProgressPanel extends JPanel {
     {
 		setProgressValues (progressBarTotal, progressLabelTotal, totalProgress, totalMsg) ;
 		setProgressValues (progressBarCurrent, progressLabelCurrent, currentProgress, processTextToFit (progressLabelCurrent, currentMsg)) ;
+		
+		progressLabelCurrent.setToolTipText(currentMsg);
     }
     
     
@@ -137,6 +139,6 @@ public class ProgressPanel extends JPanel {
 		if (pb.isIndeterminate())
 			pb.setIndeterminate(false) ;
 		pb.setValue(pbVal);
-		lbl.setText((msg == null)?(""):(msg)); 
+		lbl.setText((msg == null)?(""):(msg)); 	
 	}
 }
