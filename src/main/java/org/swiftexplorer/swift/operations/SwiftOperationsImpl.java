@@ -34,6 +34,7 @@ package org.swiftexplorer.swift.operations;
 
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountFactory;
+import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
 
@@ -78,6 +79,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
     
     private volatile boolean useCustomSegmentation = false ;
     private volatile long segmentationSize = 104857600 ; // 100MB
+    
+    private final int numberOfCommandErrorRetry = 5 ;
     
     public SwiftOperationsImpl() {
     	super () ;
@@ -441,19 +444,39 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	InputStream in = null ;
     	try
     	{
-    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
-    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
-	    	if (useCustomSegmentation)	
-	    	{
-	    		UploadInstructions ui = new UploadInstructions (file).setSegmentationSize(segmentationSize) ;
-	    		if (ui.requiresSegmentation())
+    		int tryCount = 0 ;
+    		while (true)
+    		{
+	    		try
 	    		{
-	    			largeObjectManager.uploadObjectAsSegments(storedObject, ui, attr.size(), progInfo, callback) ;
-		    		return ;
+		    		progInfo.setCurrentMessage(String.format("Uploading %s", file.getPath()));
+		    		BasicFileAttributes attr = FileUtils.getFileAttr(Paths.get(file.getPath())) ;
+			    	if (useCustomSegmentation)	
+			    	{
+			    		UploadInstructions ui = new UploadInstructions (file).setSegmentationSize(segmentationSize) ;
+			    		if (ui.requiresSegmentation())
+			    		{
+			    			largeObjectManager.uploadObjectAsSegments(storedObject, ui, attr.size(), progInfo, callback) ;
+				    		return ;
+			    		}
+			    	}	    	
+			    	in = FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath())) ;
+			    	storedObject.uploadObject(in) ;
+			    	break ;
 	    		}
-	    	}	    	
-	    	in = FileUtils.getInputStreamWithProgressFilter(progInfo, attr.size(), Paths.get(file.getPath())) ;
-	    	storedObject.uploadObject(in) ;
+	    		catch (CommandException e) 
+	    		{
+	    			if (e.getHttpStatusCode() == 0 && e.getError() == null)
+	    			{
+		    			++tryCount ;
+		    			if (tryCount >= numberOfCommandErrorRetry)
+		    				throw e ;
+		    			logger.info(String.format("Command Error: %s", e.toString()));
+	    			}
+	    			else
+	    				throw e ;
+	    		}
+    		}
     	}
 	    catch (OutOfMemoryError ome)
 	    {
