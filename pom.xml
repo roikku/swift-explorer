@@ -61,10 +61,18 @@
 		<maven-eclipse-plugin.version>2.9</maven-eclipse-plugin.version>
 		<maven-assembly-plugin.version>2.4</maven-assembly-plugin.version>
 		<commons-collections.version>3.2.1</commons-collections.version>
+		<maven-compiler-plugin.version>2.0.2</maven-compiler-plugin.version>
 	</properties>
 
 	<build>
 		<plugins>
+		
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+    			<artifactId>maven-compiler-plugin</artifactId>
+    			<version>${maven-compiler-plugin.version}</version>
+			</plugin>
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
