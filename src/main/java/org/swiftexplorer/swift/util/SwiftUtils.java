@@ -26,7 +26,7 @@ public class SwiftUtils {
 	
 	public static boolean isDirectory (StoredObject so)
 	{
-		if (so == null)
+		if (so == null || !so.exists())
 			return false ;
 		return directoryContentType.equalsIgnoreCase(so.getContentType()) ;
 	}
@@ -36,19 +36,24 @@ public class SwiftUtils {
 		String parentDir = "" ;
 		if (parentObject != null)
 		{
-			if (directoryContentType.equalsIgnoreCase(parentObject.getContentType()))
+			if (parentObject.exists())
 			{
-				parentDir = parentObject.getName() + separator ;
-			}
-			else
-			{
-				String name = parentObject.getName() ;
-				int index = name.lastIndexOf(separator) ;
-				if (index > 0)
+				if (directoryContentType.equalsIgnoreCase(parentObject.getContentType()))
 				{
-					parentDir = name.substring(0, index + 1) ;
+					parentDir = parentObject.getName() + separator ;
+				}
+				else
+				{
+					String name = parentObject.getName() ;
+					int index = name.lastIndexOf(separator) ;
+					if (index > 0)
+					{
+						parentDir = name.substring(0, index + 1) ;
+					}
 				}
 			}
+			else
+				parentDir = parentObject.getName() + separator ;
 		}
 		return parentDir ;
 	}

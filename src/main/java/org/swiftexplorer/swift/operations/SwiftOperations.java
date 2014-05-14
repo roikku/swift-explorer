@@ -32,6 +32,7 @@
 package org.swiftexplorer.swift.operations;
 
 import org.swiftexplorer.swift.SwiftAccess;
+import org.swiftexplorer.util.Pair;
 
 import java.io.File;
 import java.io.IOException;
@@ -145,7 +146,30 @@ public interface SwiftOperations {
 	public interface StopRequester {
 		public boolean isStopRequested();
 	}
-
+	
+	
+	/**
+	 * ComparisonItem interface
+	 */
+	public interface ComparisonItem extends Comparable<ComparisonItem> {
+		public boolean isRemote () ;
+		public String getMD5 () ;
+		public String getName () ;
+		public String getPath () ;
+		public long getSize () ;
+		public boolean exists () ;
+		public String getRemoteFullName () ;
+	}
+	
+	
+	/**
+	 * ResultCallback interface, SwiftOperations uses this to return result
+	 * to the client
+	 */
+	public interface ResultCallback <T> {
+		public void onResult (T res) ;
+	}
+	
     
     /**
      * performs a login.
@@ -197,6 +221,7 @@ public interface SwiftOperations {
      */
     void logout(SwiftCallback callback);
 
+    
     /**
      * creates a new container.
      * @param spec the container specifications.
@@ -204,16 +229,18 @@ public interface SwiftOperations {
      */
     void createContainer(ContainerSpecification spec, SwiftCallback callback);
 
+    
     /**
      * creates a new stored objects.
      * @param container the container to store in.
      * @param file the file(s) to upload.
-     * @param callback the callback to call when done.
      * @param stopRequester to stop the task
+     * @param callback the callback to call when done.
      * @throws IOException 
      */
     void createStoredObjects(Container container, File[] file, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
+    
     /**
      * deletes a container and all files in it.
      * @param container the container.
@@ -221,6 +248,7 @@ public interface SwiftOperations {
      */
     void deleteContainer(Container container, SwiftCallback callback);
 
+    
     /**
      * deletes a single stored object.
      * @param container the container holding the object.
@@ -230,6 +258,7 @@ public interface SwiftOperations {
      */
     void deleteStoredObjects(Container container, List<StoredObject> storedObject, StopRequester stopRequester, SwiftCallback callback);
 
+    
     /**
      * downloads a stored object into a file.
      * @param container the container.
@@ -237,31 +266,45 @@ public interface SwiftOperations {
      * @param target the target file.
      * @param stopRequester to stop the task
      * @param callback the callback to call when done.
+     * @throws IOException
      */
     void downloadStoredObject(Container container, StoredObject storedObject, File target, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
+    
+    /**
+     * downloads a stored object into a file.
+     * @param container the container.
+     * @param pairObjectFile collection of pair, first is the StoredObject to download, and second is the destination file. 
+     * @param stopRequester to stop the task
+     * @param callback the callback to call when done.
+     * @throws IOException
+     */
+	void downloadStoredObject(Container container, Collection<Pair<? extends StoredObject, ? extends File> > pairObjectFiles, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException ;
+	
+	
     /**
      * purges a container, deleting all files and the container.
      * @param container the container
-     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
     void purgeContainer(Container container, StopRequester stopRequester, SwiftCallback callback);
 
+    
     /**
      * empties a container, deleting all files but not the container.
      * @param c the container
-     * @param stopRequester to stop the task
      * @param callback the callback to call when done.
      */
     void emptyContainer(Container c, StopRequester stopRequester, SwiftCallback callback);
 
+    
     /**
      * refreshes the container list.
      * @param callback the callback to call when done.
      */
     void refreshContainers(SwiftCallback callback);
 
+    
     /**
      * refreshes the stored object list in the given container.
      * @param container the container.
@@ -269,6 +312,7 @@ public interface SwiftOperations {
      */
     void refreshStoredObjects(Container container, SwiftCallback callback);
 
+    
     /**
      * retrieves metadata for the given container.
      * @param c the container.
@@ -276,6 +320,7 @@ public interface SwiftOperations {
      */
     void getMetadata(Container c, SwiftCallback callback);
 
+    
     /**
      * retrieves metadata for the given stored object.
      * @param obj the object.
@@ -289,22 +334,39 @@ public interface SwiftOperations {
      * @param container the container to store in.
      * @param parentObject the parent of the folder.
      * @param directory the directory to upload.
-     * @param stopRequester to stop the task
+     * @param stopRequester to stop the task.
      * @param callback the callback to call when done.
+     * @throws IOException
      */
 	void uploadDirectory(Container container, StoredObject parentObject, File directory, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException;
 
 	
     /**
-     * creates a new stored objects from a files list.
+     * creates a new stored objects from a files list. Note that if a given file is a directory, then an empty directory
+     * is created, but its contents, if any, will not be (recursively) uploaded (for uploading a full directory, see 
+     * the method uploadDirectory). 
      * @param container the container to store in.
      * @param parentObject the "parent" of the new StoredObject.
      * @param file the file(s) to upload.
-     * @param stopRequester to stop the task
+     * @param stopRequester to stop the task.
      * @param callback the callback to call when done.
+     * @throws IOException
      */
     void uploadFiles(Container container, StoredObject parentObject, File[] files, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException;
     
+    
+    /**
+     * creates a new stored objects from a files list. Note that if a given file is a directory, then an empty directory
+     * is created, but its contents, if any, will not be (recursively) uploaded (for uploading a full directory, see 
+     * the method uploadDirectory). 
+     * @param container the container to store in.
+     * @param pairObjectFile collection of pair, first is the StoredObject, and second is the file to upload. 
+     * @param stopRequester to stop the task.
+     * @param callback the callback to call when done.
+     * @throws IOException
+     */
+    void uploadFiles(Container container, Collection<Pair<? extends StoredObject, ? extends File> > pairObjectFiles, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException;
+     
     
     /**
      * creates a new "directory".
@@ -320,7 +382,7 @@ public interface SwiftOperations {
      * deletes a directory stored object.
      * @param container the container holding the object directory.
      * @param storedObject the object.
-     * @param stopRequester to stop the task
+     * @param stopRequester to stop the task.
      * @param callback the callback to call.
      */
     void deleteDirectory(Container container, StoredObject storedObject, StopRequester stopRequester, SwiftCallback callback);
@@ -333,4 +395,21 @@ public interface SwiftOperations {
      * @param callback the callback to call when done.
      */
     void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback);
+    
+    
+    /**
+     * find the differences between local and remote objects.
+     * 
+     * Note that remote and local must be both either directory or file.
+     * Furthermore, they MUST have the same name.
+     * 
+     * @param container the container.
+     * @param remote the remote object.
+     * @param local the local file.
+     * @param resultCallback the callback to call when the result is ready
+     * @param stopRequester to stop the task
+     * @param callback the callback to call when done.
+     * @throws IOException
+     */
+    void findDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException ;
 }

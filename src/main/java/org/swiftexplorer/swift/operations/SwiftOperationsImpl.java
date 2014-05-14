@@ -34,9 +34,11 @@ package org.swiftexplorer.swift.operations;
 
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountFactory;
-import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
+import org.swiftexplorer.swift.operations.DifferencesFinder.LocalItem;
+import org.swiftexplorer.swift.operations.DifferencesFinder.RemoteItem;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
+import org.swiftexplorer.util.Pair;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,9 +47,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Queue;
@@ -56,6 +61,7 @@ import java.util.TreeSet;
 
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.exception.CommandException;
+import org.javaswift.joss.exception.CommandExceptionError;
 import org.javaswift.joss.instructions.UploadInstructions;
 import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
@@ -332,7 +338,27 @@ public class SwiftOperationsImpl implements SwiftOperations {
         callback.onNumberOfCalls(account.getNumberOfCalls());
     }
     
+    
+    private File getDestinationFile (StoredObject srcDirRootStoredObject, File destDirRoot, StoredObject srcStoredObject)
+    {
+    	StringBuilder pathBuilder = new StringBuilder () ;
+    	pathBuilder.append(destDirRoot.getPath ()) ;
+    	if (!destDirRoot.getPath ().endsWith(File.separator))
+    		pathBuilder.append(File.separator) ;
+    	String dirName = srcDirRootStoredObject.getName() ;
+    	int index = dirName.lastIndexOf(SwiftUtils.separator) ;
+    	if (index >= 0)
+    		dirName = dirName.substring(index + 1) ;
+    	pathBuilder.append(dirName) ;
+    	pathBuilder.append(srcStoredObject.getName().replaceFirst(srcDirRootStoredObject.getName(),"").trim()) ;
+    	String path = pathBuilder.toString() ;
+    	if (!SwiftUtils.separator.equals(File.separator))
+    		path = path.replace(SwiftUtils.separator, File.separator) ;
+    	
+    	return new File(path);
+    }
 
+    
     /**
      * {@inheritDoc}.
      * @throws IOException 
@@ -347,6 +373,12 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	{
     		try
     		{
+    			// Create the root destination directory
+    			// If storedObject does not contain any files (if it is an empty directory), then 
+    			// we still need to create an empty directory as a result of the download
+            	File destDirRoot = getDestinationFile (storedObject, target, storedObject) ;
+            	destDirRoot.mkdirs();
+    			
 	    		String prefix = storedObject.getName() + SwiftUtils.separator ;
 	    		Collection<StoredObject> listObj = eagerFetchStoredObjects(container, prefix) ;
 	    		
@@ -369,21 +401,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	            	
 	            	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
 	            	
-	            	StringBuilder pathBuilder = new StringBuilder () ;
-	            	pathBuilder.append(target.getPath ()) ;
-	            	if (!target.getPath ().endsWith(File.separator))
-	            		pathBuilder.append(File.separator) ;
-	            	String dirName = storedObject.getName() ;
-	            	int index = dirName.lastIndexOf(SwiftUtils.separator) ;
-	            	if (index >= 0)
-	            		dirName = dirName.substring(index + 1) ;
-	            	pathBuilder.append(dirName) ;
-	            	pathBuilder.append(so.getName().replaceFirst(storedObject.getName(),"").trim()) ;
-	            	String path = pathBuilder.toString() ;
-	            	if (!SwiftUtils.separator.equals(File.separator))
-	            		path = path.replace(SwiftUtils.separator, File.separator) ;
-	            	
-	            	File destFile = new File(path);
+	            	File destFile = getDestinationFile (storedObject, target, so) ;
 	            	if (SwiftUtils.isDirectory(so))
 	            		destFile.mkdirs();
 	            	else
@@ -418,10 +436,76 @@ public class SwiftOperationsImpl implements SwiftOperations {
     }
     
     
+    /**
+     * {@inheritDoc}.
+     * @throws IOException 
+     */
+	@Override
+	public synchronized void downloadStoredObject(Container container, Collection<Pair<? extends StoredObject, ? extends File> > pairObjectFiles, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	{
+		CheckAccount () ;
+		
+		if (pairObjectFiles == null || pairObjectFiles.isEmpty())
+			return ;
+		
+		int totalFiles = pairObjectFiles.size() ;
+		int currentDownloadedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
+		try
+		{
+			for (Pair<? extends StoredObject, ? extends File> pair : pairObjectFiles)
+			{			
+				if (!keepGoing (stopRequester, callback))
+	        		return ;
+	        	
+				++currentDownloadedFilesCount ;
+				
+				if (pair == null)
+					continue ;
+				File file = pair.getSecond() ;
+				if (pair.getSecond() == null) 
+					continue ;
+				StoredObject obj = pair.getFirst() ;
+				if (obj == null)
+					continue ;
+				
+				if (!overwriteAll && file.exists())
+					continue ;
+			
+				// Progress notification
+				totalProgress (currentDownloadedFilesCount, totalFiles, obj, progInfo, true) ;
+				
+				downloadObject (obj, file, progInfo, callback) ;
+			}
+		}
+		finally
+		{
+			reloadContainer(container, callback);
+			callback.onNumberOfCalls(account.getNumberOfCalls());
+		}
+	}
+    
+    
     private void downloadObject (StoredObject storedObject, File target, ProgressInformation progInfo, SwiftCallback callback) throws IOException
     {		
     	if (storedObject == null || target == null)
     		return ;
+    	
+    	// if object is a directory,
+    	if (SwiftUtils.isDirectory(storedObject))
+    	{
+    		target.mkdirs();
+    		return ;
+    	}
+    	// otherwise,
+    	
+    	if (!target.exists())
+    	{
+    		if (target.getParentFile() != null)
+    			target.getParentFile().mkdirs() ;
+    	}
+    	
     	try
     	{    		    		
     		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
@@ -456,7 +540,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			    		UploadInstructions ui = new UploadInstructions (file).setSegmentationSize(segmentationSize) ;
 			    		if (ui.requiresSegmentation())
 			    		{
-			    			largeObjectManager.uploadObjectAsSegments(storedObject, ui, attr.size(), progInfo, callback) ;
+			    			//largeObjectManager.uploadObjectAsSegments(storedObject, ui, attr.size(), progInfo, callback) ;
+			    			largeObjectManager.uploadObjectAsSegments(storedObject, file, ui, attr.size(), progInfo, callback) ;
 				    		return ;
 			    		}
 			    	}	    	
@@ -466,7 +551,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	    		}
 	    		catch (CommandException e) 
 	    		{
-	    			if (e.getHttpStatusCode() == 0 && e.getError() == null)
+	    			if ((e.getHttpStatusCode() == 0 && e.getError() == null)
+	    					|| e.getError() == CommandExceptionError.UNKNOWN)
 	    			{
 		    			++tryCount ;
 		    			if (tryCount >= numberOfCommandErrorRetry)
@@ -660,6 +746,26 @@ public class SwiftOperationsImpl implements SwiftOperations {
         }
     }
     
+    
+    private Collection<StoredObject> getAllContainedStoredObject (Container container, Directory parent)
+    {
+    	Set<StoredObject> results = new TreeSet<StoredObject>();
+    	Queue<DirectoryOrObject> queue = new ArrayDeque<DirectoryOrObject> () ;
+    	queue.addAll((parent == null) ? (container.listDirectory()) : (container.listDirectory(parent))) ;
+    	while (!queue.isEmpty())
+    	{
+    		DirectoryOrObject currDirOrObj = queue.poll() ;    		
+    		if (currDirOrObj != null)
+    		{
+				if (currDirOrObj.isObject())
+					results.add(currDirOrObj.getAsObject()) ;
+    			if (currDirOrObj.isDirectory())
+    				queue.addAll(container.listDirectory(currDirOrObj.getAsDirectory())) ;
+    		}
+    	}
+    	return results ;
+    }
+    
 
     /**
      * {@inheritDoc}.
@@ -721,6 +827,17 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			}
 			else
 			{
+				if (largeObjectManager != null && largeObjectManager.isSegmented(obj))
+				{
+					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segmentationSize) ;
+					if (etag.startsWith("\"")) ;
+						etag = etag.replace("\"", "") ;
+					if (etag != null && etag.equals(md5))
+					{
+						logger.info("The large file '{}' already exists in the cloud.", path.toString());
+						return true ; 
+					}
+				}
 				logger.info("A different version of the file '{}' already exists in the cloud. It {}.", path.toString(), (overwrite)?("will be overwritten"):("has been ignored"));
 				if (!overwrite)
 					return true ;
@@ -729,7 +846,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		return false ;
 	}
 	
-	
+
 	private void totalProgress (int currentUplodedFilesCount, int totalFiles, Path currentFile, ProgressInformation progInfo, boolean report) throws IOException
 	{
 		if (progInfo == null || currentFile == null)
@@ -764,19 +881,199 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * @throws IOException 
      */
 	@Override
+	public void findDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	{
+		CheckAccount () ;
+		
+		if (!remote.getBareName().equals(local.getName()))
+			throw new IllegalArgumentException ("The local and the remote items must have the same name") ; 
+		
+    	if (SwiftUtils.isDirectory(remote) && Files.isDirectory(Paths.get(local.getPath()))) {
+    		// here we compare two folders
+    		findDirectoriesDifferences (container, remote, local, resultCallback, stopRequester, callback) ;
+    	}
+    	else if (SwiftUtils.isDirectory(remote)) {
+    		throw new AssertionError ("A remote directory can only be compared with a local directory") ;
+    	}
+    	else{
+    		// here we only compare two "files"
+    		findFilesDifferences (container, remote, local, resultCallback, stopRequester, callback) ;
+    	}
+	}
+	
+	
+	private void findFilesDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	{
+		if (SwiftUtils.isDirectory(remote) || Files.isDirectory(Paths.get(local.getPath())))
+			throw new IllegalArgumentException () ;
+		
+		List<Pair<? extends ComparisonItem, ? extends ComparisonItem> > ret = new ArrayList<> () ;
+		
+		RemoteItem ri = new RemoteItem (remote) ;
+		LocalItem li = new LocalItem (Paths.get(local.getPath()), Paths.get(local.getPath()).getParent(), segmentationSize) ;	
+		
+		if (ri.equals(li))
+		{
+			if (!li.getName().equals(ri.getName()))
+			{
+				ret.add(Pair.newPair(li, (ComparisonItem)null)) ;
+				ret.add(Pair.newPair((ComparisonItem)null, ri)) ;
+			}
+		}
+		else
+		{
+			if (!li.getName().equals(ri.getName()) && ri.exists() && li.exists ())
+			{
+				ret.add(Pair.newPair(li, (ComparisonItem)null)) ;
+				ret.add(Pair.newPair((ComparisonItem)null, ri)) ;
+			}
+			else if (ri.exists() || li.exists ())
+				ret.add(Pair.newPair(li, ri)) ;
+		}
+		
+		callback.onNumberOfCalls(account.getNumberOfCalls());
+		resultCallback.onResult(ret);
+	}
+	
+	
+	private void findDirectoriesDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	{
+		if (!SwiftUtils.isDirectory(remote) || !Files.isDirectory(Paths.get(local.getPath())))
+			throw new IllegalArgumentException () ;
+			
+		List<Pair<? extends ComparisonItem, ? extends ComparisonItem> > ret = new ArrayList<> () ;
+		
+		// here we compare two folders	
+		Path parentLocalDir = Paths.get(local.getPath()) ;
+		Queue<Path> filesQueue = FileUtils.getAllFilesPath(parentLocalDir, true) ;
+		
+		String parentDir = SwiftUtils.getParentDirectory(remote) ;		
+		String ending = local.getName() + SwiftUtils.separator ;
+		if (parentDir.endsWith(ending))
+			parentDir = parentDir.substring(0, parentDir.length() - ending.length()) ;
+		
+		// Progress notification
+		// two phases: 
+		// 1. find missing objects or object that differ (50 %)
+		// 2. find file that are missing (100%)
+		int totalFiles = filesQueue.size() ;
+		int currentUplodedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
+		Set<StoredObject> consideredStoredObjectSet = new HashSet<> () ;
+	
+		try
+		{
+			progInfo.setTotalProgress(0.5);
+			progInfo.setTotalMessage("Searching for missing remote files");
+			for (Path path : filesQueue)
+			{		
+				if (!keepGoing (stopRequester, callback))
+	        		return ;
+	        	
+				++currentUplodedFilesCount ;
+	
+				if (!isPathValid (path))
+					continue ;
+	
+				progInfo.setCurrentMessage(String.format("Current file: %s)", path.toString()));
+				progInfo.setCurrentProgress(currentUplodedFilesCount / (double)totalFiles);
+				progInfo.report();
+				
+				StoredObject obj = getObjectRelativelyInDirectory (container, parentDir, parentLocalDir, path) ;
+				
+				if (obj.exists())
+					consideredStoredObjectSet.add(obj) ;
+				
+	    		RemoteItem ri = new RemoteItem (obj) ;
+	    		LocalItem li = new LocalItem (path, parentLocalDir, segmentationSize) ;
+	    		if (ri.equals(li) || (!ri.exists() && !li.exists ()))
+	    			continue ;
+	    		ret.add(Pair.newPair(li, ri)) ; 
+	    		
+				callback.onNumberOfCalls(account.getNumberOfCalls());
+			}
+			
+			// here we need to determine the objects that exist only remotely
+			progInfo.setTotalProgress(1.0);
+			progInfo.setTotalMessage("Searching for missing local files");
+			progInfo.report();
+			
+			//Set<StoredObject> allObjectsSet = new HashSet<> (eagerFetchStoredObjects(container, remote.getName()  + SwiftUtils.separator)) ;
+			Set<StoredObject> allObjectsSet = new HashSet<> (getAllContainedStoredObject(container, new Directory(remote.getName()  + SwiftUtils.separator, SwiftUtils.separator.charAt(0)))) ;
+			allObjectsSet.removeAll(consideredStoredObjectSet) ;
+			currentUplodedFilesCount = 0 ;
+			totalFiles = allObjectsSet.size() ;
+			for (StoredObject so : allObjectsSet)
+			{
+				++currentUplodedFilesCount ;
+				
+				if (so == null || !so.exists())
+					continue ;
+				
+				progInfo.setCurrentMessage(String.format("Current object: %s)", so.getName()));
+				progInfo.setCurrentProgress(currentUplodedFilesCount / (double)totalFiles);
+				progInfo.report();
+				
+				ret.add(Pair.newPair((LocalItem)null, new RemoteItem (so))) ;
+			}
+		}
+	    catch (OutOfMemoryError ome)
+	    {
+	    	dealWithOutOfMemoryError (ome, "findDifferences", callback) ;
+	    }
+    	finally
+    	{
+    		callback.onNumberOfCalls(account.getNumberOfCalls());
+    	}	
+		resultCallback.onResult(ret);
+	}
+	
+	
+	private boolean isPathValid (Path path)
+	{
+		if (Files.notExists(path))
+			return false ;
+		if (Files.isSymbolicLink(path))
+			return false ;
+		return true ;
+	}
+	
+	
+	private StoredObject getObjectRelativelyInDirectory (Container container, String parentDir, Path source, Path path)
+	{
+		final String separator = SwiftUtils.separator ;
+		
+		StringBuilder objectPathBuilder = new StringBuilder () ;
+		if (parentDir != null)
+			objectPathBuilder.append (parentDir) ;
+		objectPathBuilder.append (source.getFileName().toString()) ;
+		objectPathBuilder.append(separator) ;
+		objectPathBuilder.append(source.relativize(path).toString()) ;
+
+		String objectPath = objectPathBuilder.toString() ;
+		if (!separator.equals(File.separator))
+			objectPath = objectPath.replace(File.separator, separator) ;
+	
+		// relevant when creating folder
+		if (objectPath.length() > 1 && objectPath.endsWith(separator))
+			objectPath = objectPath.substring(0, objectPath.length() - 1) ;
+		
+		return container.getObject(objectPath.toString());
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     * @throws IOException 
+     */
+	@Override
 	public synchronized void uploadDirectory(Container container, StoredObject parentObject, File directory, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException {
 
 		CheckAccount () ;
     	
-		final String separator = SwiftUtils.separator ;
-		
 		Path source = Paths.get(directory.getPath()) ;
 		Queue<Path> filesQueue = FileUtils.getAllFilesPath(source, true) ;
-		if (filesQueue == null)
-		{
-			logger.info("No file found in the directory '{}'", directory.getPath ());
-			return ;
-		}
 		
 		String parentDir = SwiftUtils.getParentDirectory(parentObject) ;
 		
@@ -793,29 +1090,13 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	        	
 				++currentUplodedFilesCount ;
 	
-				if (Files.notExists(path))
-					continue ;
-				if (Files.isSymbolicLink(path))
+				if (!isPathValid (path))
 					continue ;
 	
 				// Progress notification
 				totalProgress (currentUplodedFilesCount, totalFiles, path, progInfo, true) ;
 				
-				StringBuilder objectPathBuilder = new StringBuilder () ;
-				objectPathBuilder.append (parentDir) ;
-				objectPathBuilder.append (source.getFileName().toString()) ;
-				objectPathBuilder.append(separator) ;
-				objectPathBuilder.append(source.relativize(path).toString()) ;
-	
-				String objectPath = objectPathBuilder.toString() ;
-				if (!separator.equals(File.separator))
-					objectPath = objectPath.replace(File.separator, separator) ;
-			
-				// relevant when creating folder
-				if (objectPath.length() > 1 && objectPath.endsWith(separator))
-					objectPath = objectPath.substring(0, objectPath.length() - 1) ;
-				
-				StoredObject obj = container.getObject(objectPath.toString());
+				StoredObject obj = getObjectRelativelyInDirectory (container, parentDir, source, path) ;
 				
 				if (shouldBeIgnored (obj, path, overwriteAll))
 					continue ;
@@ -823,10 +1104,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				if (Files.isDirectory(path))
 				{				
 					// here we create a directory
-					byte[] emptyfile = {} ; 
-					UploadInstructions inst = new UploadInstructions (emptyfile) ;
-					inst.setContentType(SwiftUtils.directoryContentType) ;
-					obj.uploadObject(inst) ;
+					createDirectory (obj) ;
 				}
 				else
 				{
@@ -875,7 +1153,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	        	
 				++currentUplodedFilesCount ;
 				
-				if (file == null || !file.exists() || !file.isFile()) 
+				if (file == null || !file.exists()) 
 					continue ;
 	
 				// Progress notification
@@ -888,10 +1166,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				
 				StoredObject obj = container.getObject(objectPath.toString());
 				
-				if (shouldBeIgnored (obj, Paths.get(file.getPath()), overwriteAll))
-					continue ;
-				
-				uploadObject (obj, file, progInfo, callback) ;
+				uploadFile (obj, file, progInfo, overwriteAll, callback) ;
 			}
 		}
 		finally
@@ -899,6 +1174,68 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			reloadContainer(container, callback);
 			callback.onNumberOfCalls(account.getNumberOfCalls());
 		}
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     * @throws IOException 
+     */
+	@Override
+	public synchronized void uploadFiles(Container container, Collection<Pair<? extends StoredObject, ? extends File> > pairObjectFiles, boolean overwriteAll, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	{
+		CheckAccount () ;
+		
+		if (pairObjectFiles == null || pairObjectFiles.isEmpty())
+			return ;
+		
+		int totalFiles = pairObjectFiles.size() ;
+		int currentUplodedFilesCount = 0 ;
+		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
+		try
+		{
+			for (Pair<? extends StoredObject, ? extends File> pair : pairObjectFiles)
+			{			
+				if (!keepGoing (stopRequester, callback))
+	        		return ;
+	        	
+				++currentUplodedFilesCount ;
+				
+				if (pair == null)
+					continue ;
+				File file = pair.getSecond() ;
+				if (pair.getSecond() == null || !pair.getSecond().exists()) 
+					continue ;
+				StoredObject obj = pair.getFirst() ;
+				if (obj == null)
+					continue ;
+	
+				// Progress notification
+				totalProgress (currentUplodedFilesCount, totalFiles, Paths.get(file.toURI()), progInfo, true) ;
+				
+				uploadFile (obj, file, progInfo, overwriteAll, callback) ;
+			}
+		}
+		finally
+		{
+			reloadContainer(container, callback);
+			callback.onNumberOfCalls(account.getNumberOfCalls());
+		}
+	}
+	
+	
+	private void uploadFile (StoredObject obj, File file, ProgressInformation progInfo, boolean overwriteAll, SwiftCallback callback) throws IOException
+	{
+		if (file.isDirectory() && !obj.exists())
+		{
+			// we create a directory
+			createDirectory (obj) ;
+			return ;
+		}
+		if (shouldBeIgnored (obj, Paths.get(file.getPath()), overwriteAll))
+			return ;
+		uploadObject (obj, file, progInfo, callback) ;
 	}
 	
 
@@ -928,13 +1265,20 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		}
 		else
 		{
-			byte[] emptyfile = {} ; 
-			UploadInstructions inst = new UploadInstructions (emptyfile) ;
-			inst.setContentType(SwiftUtils.directoryContentType) ;
-			obj.uploadObject(inst) ;
+			createDirectory (obj) ;
 		}
 		reloadContainer(container, callback);
 		callback.onNumberOfCalls(account.getNumberOfCalls());
+	}
+	
+	
+	private void createDirectory (StoredObject obj)
+	{
+		//obj.uploadObject(new UploadInstructions (new byte[] {}).setContentType(SwiftUtils.directoryContentType)) ;
+		byte[] emptyfile = {} ; 
+		UploadInstructions inst = new UploadInstructions (emptyfile) ;
+		inst.setContentType(SwiftUtils.directoryContentType) ;
+		obj.uploadObject(inst) ;
 	}
 
 
@@ -1005,9 +1349,10 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	
 
 	private void dealWithOutOfMemoryError (OutOfMemoryError ome, String functionName, SwiftCallback callback)
-	{
+	{		
     	System.gc() ; // pointless at this stage, but anyway...
     	logger.error(String.format("OutOfMemory error occurred while calling SwiftOperationsImpl.%s", functionName), ome);
-    	callback.onError(new CommandException ("The JVM ran out of memory")) ;
+    	callback.onError(new CommandException ("The JVM ran out of memory - <font color=red><b>You must exit</b></font>"));
+    	throw ome ; 
 	}
 }

@@ -46,7 +46,10 @@ import org.swiftexplorer.config.localization.HasLocalizationSettings.LanguageCod
 import org.swiftexplorer.config.localization.HasLocalizationSettings.RegionCode;
 import org.swiftexplorer.config.proxy.Proxy;
 import org.swiftexplorer.config.swift.SwiftParameters;
+import org.swiftexplorer.gui.diff.DifferencesManagementPanel;
 import org.swiftexplorer.gui.localization.HasLocalizedStrings;
+import org.swiftexplorer.gui.log.ErrorDlg;
+import org.swiftexplorer.gui.log.LogPanel;
 import org.swiftexplorer.gui.login.CloudieCallbackWrapper;
 import org.swiftexplorer.gui.login.CredentialsStore;
 import org.swiftexplorer.gui.login.CredentialsStore.Credentials;
@@ -71,11 +74,14 @@ import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.ContainerSpecification;
 import org.swiftexplorer.swift.operations.SwiftOperations;
+import org.swiftexplorer.swift.operations.SwiftOperations.ComparisonItem;
+import org.swiftexplorer.swift.operations.SwiftOperations.ResultCallback;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.operations.SwiftOperationsImpl;
 import org.swiftexplorer.swift.util.HubicSwift;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
+import org.swiftexplorer.util.Pair;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -107,6 +113,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.accessibility.AccessibleContext;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
@@ -144,6 +151,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
@@ -189,6 +197,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final JButton progressButton = new JButton() ;
     private final ProgressPanel progressPanel = new ProgressPanel () ;
     
+    private JDialog differencesManagementDlg = null ;
+    
     private final JButton stopButton = new JButton() ;
     
     private final JTabbedPane objectViewTabbedPane = new JTabbedPane ();
@@ -221,6 +231,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private Action storedObjectUploadDirectoryAction = null ;
     private Action storedObjectCreateDirectoryAction = null ;
     private Action storedObjectDownloadDirectoryAction = null ;
+    private Action storedObjectCompareFilesAction = null ;
+    private Action storedObjectCompareDirectoriesAction = null ;
 
     private Action settingProxyAction = null ;
     private Action settingPreferencesAction = null ;
@@ -256,6 +268,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final boolean allowCustomeSegmentationSize = true ;
     
     private volatile boolean hideSegmentsContainers = false ; 
+    
+    private final LogPanel errorLogPanel = new LogPanel () ;
+    private ErrorDlg errorDialog ;
 
     /**
      * creates MainPanel and immediately logs in using the given credentials.
@@ -429,7 +444,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				logger.error("Error occurred while creating mac os specific menu", ex);
 			}
 		}
-        
+
         //
         bind();
         //
@@ -494,6 +509,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         storedObjectCreateDirectoryAction = new ReflectionAction<MainPanel>(getLocalizedString("Create_Directory"), getIcon("folder_add.png"), this, "onCreateDirectory");
         storedObjectDownloadDirectoryAction = new ReflectionAction<MainPanel>(getLocalizedString("Download_Directory"), getIcon("folder_download.png"), this, "onDownloadStoredObjectDirectory");
         storedObjectDeleteDirectoryAction = new ReflectionAction<MainPanel>(getLocalizedString("Delete_Directory"), getIcon("folder_delete.png"), this, "onDeleteStoredObjectDirectory");
+        storedObjectCompareFilesAction = new ReflectionAction<MainPanel>(getLocalizedString("Compare_Files"), getIcon("compare_files.png"), this, "onCompareFiles") ;
+        storedObjectCompareDirectoriesAction = new ReflectionAction<MainPanel>(getLocalizedString("Compare_Directories"), getIcon("compare_directories.png"), this, "onCompareDirectories");
         
         settingProxyAction = new ReflectionAction<MainPanel>(getLocalizedString("Proxy"), getIcon("server_link.png"), this, "onProxy");
         settingPreferencesAction = new ReflectionAction<MainPanel>(getLocalizedString("Preferences"), getIcon("wrench.png"), this, "onPreferences");
@@ -811,6 +828,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         storedObjectDownloadDirectoryAction.setEnabled(containerSelected && singleObjectSelected && !isBusy && isSelectedDir);
         storedObjectDeleteDirectoryAction.setEnabled(containerSelected && singleObjectSelected && !isBusy && isSelectedDir);
+        
+        storedObjectCompareFilesAction.setEnabled(containerSelected && singleObjectSelected && !isBusy && !isSelectedDir);
+        storedObjectCompareDirectoriesAction.setEnabled(containerSelected && singleObjectSelected && !isBusy && isSelectedDir);
     }
 
     
@@ -993,41 +1013,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
 
     public void onAbout() {
-        StringBuilder sb = loadResource("/about.html");
-        JLabel label = new JLabel(sb.toString());
-        
-        StringBuilder title = new StringBuilder () ;
-        title.append (" ") ;
-        title.append (Configuration.INSTANCE.getAppName()) ;
-        title.append (" (") ;
-        title.append (Configuration.INSTANCE.getAppVersion()) ;
-        title.append (")") ;
-        String msg = MessageFormat.format (getLocalizedString("About_dlg_title"), title.toString()) ;
-        
-        JOptionPane.showMessageDialog(this, label, msg, JOptionPane.INFORMATION_MESSAGE, getIcon("logo.png"));
+        AboutDlg.show(this, stringsBundle);
     }
     
-
-    private StringBuilder loadResource(String resource) {
-        StringBuilder sb = new StringBuilder();
-        InputStream input = MainPanel.class.getResourceAsStream(resource);
-        try {
-            try {
-                List<String> lines = IOUtils.readLines(input);
-                for (String line : lines) {
-                    sb.append(line);
-                }
-            } finally {
-                input.close();
-            }
-        } catch (IOException ex) 
-        {
-        	logger.error("Error occurred while loading resources.", ex);
-            throw new RuntimeException(ex);
-        }
-        return sb;
-    }
-
     
     public void onLogout() {
         ops.logout(callback);
@@ -1190,15 +1178,15 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private JPopupMenu createContainerPopupMenu() {
         JPopupMenu pop = new JPopupMenu("Container");
-        pop.add(new JMenuItem(containerRefreshAction));
-        pop.add(new JMenuItem(containerViewMetaData));
+        pop.add(setAccessibleContext(new JMenuItem(containerRefreshAction)));
+        pop.add(setAccessibleContext(new JMenuItem(containerViewMetaData)));
         pop.addSeparator();
-        pop.add(new JMenuItem(containerCreateAction));
-        pop.add(new JMenuItem(containerDeleteAction));
+        pop.add(setAccessibleContext(new JMenuItem(containerCreateAction)));
+        pop.add(setAccessibleContext(new JMenuItem(containerDeleteAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(containerEmptyAction));
+        pop.add(setAccessibleContext(new JMenuItem(containerEmptyAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(containerPurgeAction));
+        pop.add(setAccessibleContext(new JMenuItem(containerPurgeAction)));
         return pop;
     }
 
@@ -1289,33 +1277,59 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
      */
     private JPopupMenu createStoredObjectPopupMenu() {
         JPopupMenu pop = new JPopupMenu(getLocalizedString("StoredObject"));
-        pop.add(new JMenuItem(storedObjectPreviewAction));
-        pop.add(new JMenuItem(storedObjectOpenAction));
-        pop.add(new JMenuItem(storedObjectViewMetaData));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectPreviewAction)));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectOpenAction)));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectViewMetaData)));
         pop.addSeparator();
-        pop.add(new JMenuItem(storedObjectGetInfoAction));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectGetInfoAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(storedObjectUploadFilesAction));
-        pop.add(new JMenuItem(storedObjectDownloadFilesAction));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectUploadFilesAction)));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectDownloadFilesAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(storedObjectCreateDirectoryAction)) ;
-        pop.add(new JMenuItem(storedObjectUploadDirectoryAction));
-        pop.add(new JMenuItem(storedObjectDownloadDirectoryAction));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectCreateDirectoryAction))) ;
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectUploadDirectoryAction)));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectDownloadDirectoryAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(storedObjectDeleteFilesAction));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectDeleteFilesAction)));
         pop.addSeparator();
-        pop.add(new JMenuItem(storedObjectDeleteDirectoryAction));
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectDeleteDirectoryAction)));
+        pop.addSeparator();
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectCompareFilesAction))) ;
+        pop.add(setAccessibleContext(new JMenuItem(storedObjectCompareDirectoriesAction))) ;
         return pop;
     }
 
     
+    private <T extends Component> T setAccessibleContext (T comp)
+    {
+    	return setAccessibleContext (comp, null) ;
+    }
+    
+    
+    private <T extends Component> T setAccessibleContext (T comp, String name)
+    {
+    	if (comp == null)
+    		return comp;
+    	AccessibleContext ac = comp.getAccessibleContext() ;
+    	if (ac == null)
+    		return comp ;
+    	if (name != null && !name.isEmpty())
+    		ac.setAccessibleName(name);
+    	else if (comp instanceof AbstractButton)
+    		ac.setAccessibleName(((AbstractButton)comp).getText());
+    	else
+    		ac.setAccessibleName(comp.getName());
+    	return comp ;
+    }
+    
+    
     public JMenuBar createMenuBar() {
         JMenuBar bar = new JMenuBar();
-        JMenu accountMenu = new JMenu(getLocalizedString("Account"));
-        JMenu containerMenu = new JMenu(getLocalizedString("Container"));
-        JMenu storedObjectMenu = new JMenu(getLocalizedString("StoredObject"));
-        JMenu settingsMenu = new JMenu(getLocalizedString("Settings"));
-        JMenu helpMenu = new JMenu(getLocalizedString("Help"));
+        JMenu accountMenu = setAccessibleContext(new JMenu(getLocalizedString("Account")));
+        JMenu containerMenu = setAccessibleContext(new JMenu(getLocalizedString("Container")));
+        JMenu storedObjectMenu = setAccessibleContext(new JMenu(getLocalizedString("StoredObject")));
+        JMenu settingsMenu = setAccessibleContext(new JMenu(getLocalizedString("Settings")));
+        JMenu helpMenu = setAccessibleContext(new JMenu(getLocalizedString("Help")));
         accountMenu.setMnemonic('A');
         containerMenu.setMnemonic('C');
         storedObjectMenu.setMnemonic('O');
@@ -1330,55 +1344,58 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         //	addSearchPanel (bar) ;
         	
         //
-        accountMenu.add(new JMenuItem(accountHubicLoginAction));
-        accountMenu.add(new JMenuItem(accountGenericLoginAction));
-        accountMenu.add(new JMenuItem(accountSimulatorLoginAction));
+        accountMenu.add(setAccessibleContext(new JMenuItem(accountHubicLoginAction)));
+        accountMenu.add(setAccessibleContext(new JMenuItem(accountGenericLoginAction)));
+        accountMenu.add(setAccessibleContext(new JMenuItem(accountSimulatorLoginAction)));
         accountMenu.addSeparator();
-        accountMenu.add(new JMenuItem(accountLogoutAction));
+        accountMenu.add(setAccessibleContext(new JMenuItem(accountLogoutAction)));
         if (!nativeMacOsX) 
         {
 	    	accountMenu.addSeparator();
-	    	accountMenu.add(new JMenuItem(accountQuitAction));
+	    	accountMenu.add(setAccessibleContext(new JMenuItem(accountQuitAction)));
         }
 
         //
-        containerMenu.add(new JMenuItem(containerRefreshAction));
-        containerMenu.add(new JMenuItem(containerViewMetaData));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerRefreshAction)));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerViewMetaData)));
         containerMenu.addSeparator();
-        containerMenu.add(new JMenuItem(containerGetInfoAction));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerGetInfoAction)));
         containerMenu.addSeparator();
-        containerMenu.add(new JMenuItem(containerCreateAction));
-        containerMenu.add(new JMenuItem(containerDeleteAction));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerCreateAction)));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerDeleteAction)));
         containerMenu.addSeparator();
-        containerMenu.add(new JMenuItem(containerEmptyAction));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerEmptyAction)));
         containerMenu.addSeparator();
-        containerMenu.add(new JMenuItem(containerPurgeAction));
+        containerMenu.add(setAccessibleContext(new JMenuItem(containerPurgeAction)));
         //
-        storedObjectMenu.add(new JMenuItem(storedObjectPreviewAction));
-        storedObjectMenu.add(new JMenuItem(storedObjectOpenAction));
-        storedObjectMenu.add(new JMenuItem(storedObjectViewMetaData));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectPreviewAction)));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectOpenAction)));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectViewMetaData)));
         storedObjectMenu.addSeparator();
-        storedObjectMenu.add(new JMenuItem(storedObjectGetInfoAction));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectGetInfoAction)));
         storedObjectMenu.addSeparator();
-        storedObjectMenu.add(new JMenuItem(storedObjectUploadFilesAction));
-        storedObjectMenu.add(new JMenuItem(storedObjectDownloadFilesAction));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectUploadFilesAction)));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectDownloadFilesAction)));
         storedObjectMenu.addSeparator();
-        storedObjectMenu.add(new JMenuItem(storedObjectCreateDirectoryAction)) ;
-        storedObjectMenu.add(new JMenuItem(storedObjectUploadDirectoryAction));
-        storedObjectMenu.add(new JMenuItem(storedObjectDownloadDirectoryAction));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectCreateDirectoryAction))) ;
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectUploadDirectoryAction)));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectDownloadDirectoryAction)));
         storedObjectMenu.addSeparator();
-        storedObjectMenu.add(new JMenuItem(storedObjectDeleteFilesAction));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectDeleteFilesAction)));
         storedObjectMenu.addSeparator();
-        storedObjectMenu.add(new JMenuItem(storedObjectDeleteDirectoryAction));
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectDeleteDirectoryAction)));
+        storedObjectMenu.addSeparator();
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectCompareFilesAction))) ;
+        storedObjectMenu.add(setAccessibleContext(new JMenuItem(storedObjectCompareDirectoriesAction))) ;
         
         //
-        settingsMenu.add(new JMenuItem(settingProxyAction)) ;
+        settingsMenu.add(setAccessibleContext(new JMenuItem(settingProxyAction))) ;
         if (allowCustomeSegmentationSize)
-        	settingsMenu.add(new JMenuItem(settingSwiftAction)) ;
+        	settingsMenu.add(setAccessibleContext(new JMenuItem(settingSwiftAction))) ;
         if (!nativeMacOsX) 
         {
 	        settingsMenu.addSeparator();
-	        settingsMenu.add(new JMenuItem(settingPreferencesAction)) ;
+	        settingsMenu.add(setAccessibleContext(new JMenuItem(settingPreferencesAction))) ;
         }
         //
         helpMenu.add(new JMenuItem(jvmInfoAction));
@@ -1486,7 +1503,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
                     return ;
             } 
             doSaveStoredObject(selectedDest, container, obj);
-            onProgressButton() ;
+            //onProgressButton() ;
             lastFolder = selectedDest;
         }
     }
@@ -1503,14 +1520,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
             // set the default value
             StoredObject obj = objList.iterator().next() ;
-            if (obj != null && obj.getName() != null && !obj.getName().isEmpty())
-            {
-            	String fileName = obj.getName() ;
-            	int index = fileName.lastIndexOf(SwiftUtils.separator) ;
-            	if (index > 0)
-            		fileName = fileName.substring(index + 1) ;
-            	chooser.setSelectedFile(new File (fileName));
-            }
+            setDefaultFileChooserValue (chooser, obj) ;
         } else {
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         }
@@ -1557,6 +1567,177 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
 
     
+    private void setDefaultFileChooserValue (JFileChooser chooser, StoredObject obj)
+    {
+        if (obj != null && obj.getName() != null && !obj.getName().isEmpty())
+        {
+        	String fileName = obj.getName() ;
+        	int index = fileName.lastIndexOf(SwiftUtils.separator) ;
+        	if (index > 0)
+        		fileName = fileName.substring(index + 1) ;
+        	chooser.setSelectedFile(new File (fileName));
+        }
+    }
+    
+    
+    private FileFilter getComparisonFileFilter (final String name, final boolean directories)
+    {
+    	return new FileFilter () {
+
+			@Override
+			public boolean accept(File f) {
+				
+				if (f.isDirectory())
+					return true ;				
+				return f.getName().equals(name);
+			}
+
+			@Override
+			public String getDescription() {
+				String msg = MessageFormat.format (getLocalizedString((!directories) ? ("File_Named_") : ("Directories_Named_")), name) ;
+				return String.format(msg);
+			}};
+    }
+    
+    
+    private boolean checkFileNameIdentical (String name1, String name2)
+    {
+    	if (name1 != null && name1.equals(name2))
+    		return true ;
+    	String newLine = System.getProperty("line.separator");
+    	StringBuilder sb = new StringBuilder () ;
+    	sb.append(getLocalizedString("The_names_does_not_match")) ;
+    	sb.append (": ") ;
+    	sb.append(newLine) ;
+    	sb.append ("- ") ;
+    	sb.append (name1) ;
+    	sb.append(newLine) ;
+    	sb.append ("- ") ;
+    	sb.append (name2) ;
+		JOptionPane.showMessageDialog(null, sb.toString(), getLocalizedString("Invalid_Selection"), JOptionPane.ERROR_MESSAGE);
+		return false ;
+    }
+    
+    
+    protected void onCompareFiles ()
+    {
+    	List<StoredObject> sltObj = getSelectedStoredObjects() ;
+    	if (sltObj != null && sltObj.size() != 1)
+    		return ; // should never happen, because in such a case the menu is disable
+    	final StoredObject obj = sltObj.get(0) ;
+    	if (SwiftUtils.isDirectory(obj))
+    		return ; // should never happen, because in such a case the menu is disable
+        final Container container = getSelectedContainer();
+        
+        final JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(lastFolder);
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        chooser.setMultiSelectionEnabled(false) ;
+        setDefaultFileChooserValue (chooser, obj) ;
+
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.addChoosableFileFilter(getComparisonFileFilter(obj.getBareName(), false));
+        
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) 
+        {	
+        	if (!checkFileNameIdentical (chooser.getSelectedFile().getName(), obj.getBareName()))
+        		return ;
+        	
+        	@SuppressWarnings("unchecked")
+			ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > crcb = GuiTreadingUtils.guiThreadSafe(ResultCallback.class, new ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > () {
+				@Override
+				public void onResult(Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > discrepancies) {
+	
+					showDifferencesManagementDlg (container, obj, chooser.getSelectedFile(), discrepancies, false) ;
+				}}) ;
+        	try 
+        	{
+				ops.findDifferences(container, obj, chooser.getSelectedFile(), crcb, null, callback);
+			} 
+        	catch (IOException e) 
+        	{
+        		logger.error("Error occurred while comparing files.", e);
+			}
+        }
+        lastFolder = chooser.getCurrentDirectory();
+    }
+    
+    
+    private void showDifferencesManagementDlg (Container container, StoredObject srcStoredObject, File srcFile, Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > discrepancies, boolean directories)
+    {
+    	if (differencesManagementDlg != null && differencesManagementDlg.isShowing()) 
+    		differencesManagementDlg.setVisible(false) ;
+    	
+    	if (discrepancies == null || discrepancies.isEmpty())
+    	{
+    		String keyMsg = "Files_are_identical" ;
+    		String keyTitle = "Files_Comparison" ;
+    		if (directories)
+    		{
+        		keyMsg = "Directories_are_identical" ;
+        		keyTitle = "Directories_Comparison" ;
+    		}
+    		JOptionPane.showMessageDialog(this, getLocalizedString(keyMsg), getLocalizedString(keyTitle), JOptionPane.INFORMATION_MESSAGE);
+    		return ;
+    	}
+    
+    	differencesManagementDlg = new JDialog (owner) ;
+    	DifferencesManagementPanel differencesManagementPanel = new DifferencesManagementPanel (container, srcStoredObject, srcFile, discrepancies, ops, this, stringsBundle, differencesManagementDlg, owner.getSize()) ;
+    	differencesManagementDlg.setContentPane(differencesManagementPanel);
+    	differencesManagementDlg.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+    	differencesManagementDlg.setTitle(getLocalizedString("Differences_View_And_Management"));
+    	differencesManagementDlg.pack();
+    	center (differencesManagementDlg) ;
+    	differencesManagementDlg.setVisible(true);
+    }
+    
+    
+    protected void onCompareDirectories ()
+    {
+    	List<StoredObject> sltObj = getSelectedStoredObjects() ;
+    	if (sltObj != null && sltObj.size() != 1)
+    		return ; // should never happen, because in such a case the menu is disable
+    	final StoredObject obj = sltObj.get(0) ;
+    	if (!SwiftUtils.isDirectory(obj))
+    		return ; // should never happen, because in such a case the menu is disable
+        final Container container = getSelectedContainer();
+        
+        final JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(lastFolder);
+        //chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setMultiSelectionEnabled(false) ;
+        setDefaultFileChooserValue (chooser, obj) ;
+
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.addChoosableFileFilter(getComparisonFileFilter(obj.getBareName(), true));
+        
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) 
+        {	
+        	if (!checkFileNameIdentical (chooser.getSelectedFile().getName(), obj.getBareName()))
+        		return ;
+        	
+        	@SuppressWarnings("unchecked")
+			ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > crcb = GuiTreadingUtils.guiThreadSafe(ResultCallback.class, new ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > () {
+				@Override
+				public void onResult(Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > discrepancies) {
+
+					showDifferencesManagementDlg (container, obj, chooser.getSelectedFile(), discrepancies, true) ;
+				}}) ;
+        	try 
+        	{
+				ops.findDifferences(container, obj, chooser.getSelectedFile(), crcb, getNewSwiftStopRequester(), callback);
+        		//onProgressButton();
+			} 
+        	catch (IOException e) 
+        	{
+        		logger.error("Error occurred while comparing files.", e);
+			}
+        }
+        lastFolder = chooser.getCurrentDirectory();
+    }
+    
+    
     protected void onDeleteStoredObjectDirectory () 
     {
         Container container = getSelectedContainer();
@@ -1568,7 +1749,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     		return ; // should never happen, because in such a case the menu is disable
     	
     	doDeleteObjectDirectory(container, obj) ;
-    	onProgressButton() ;
+    	//onProgressButton() ;
     }
     
     
@@ -1585,8 +1766,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_one_directory_delete_from_container"), obj.getName(), container.getName()) ;
         if (confirm(msg)) {
-        	onProgressButton () ;
-        	
+        	//onProgressButton () ;
         	ops.deleteDirectory(container, obj, getNewSwiftStopRequester (), callback) ;
         }
     }
@@ -1616,7 +1796,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	String msg = MessageFormat.format (getLocalizedString("confirm_many_files_delete_from_container"), String.valueOf(obj.size()), container.getName()) ;
     	if (confirm(msg)) {
-    		onProgressButton () ;
+    		//onProgressButton () ;
             ops.deleteStoredObjects(container, obj, getNewSwiftStopRequester(), callback);
         }
     }
@@ -1653,10 +1833,10 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				
 				// We open the progress window, for it is likely that this operation
 				// will take a while
-				if (selectedFiles != null /*&& selectedFiles.length > 1*/)
-				{
-		            onProgressButton () ;
-				}
+				//if (selectedFiles != null /*&& selectedFiles.length > 1*/)
+				//{
+		            //onProgressButton () ;
+				//}
 			} 
             catch (IOException e) 
 			{
@@ -1803,7 +1983,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				
 				// We open the progress window, for it is likely that this operation
 				// will take a while
-	            onProgressButton () ;
+	            //onProgressButton () ;
 			} 
             catch (IOException e) 
 			{
@@ -1835,7 +2015,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             public void uncaughtException(Thread t, Throwable ex) {
                 if (ex instanceof CommandException) {
                     showError((CommandException) ex);
+                } else if (ex instanceof OutOfMemoryError) {
+                	System.gc() ; // pointless at this stage, but anyway...
+                	showError(new CommandException ("The JVM ran out of memory - <font color=red><b>You must exit</b></font>")) ;
                 } else {
+                	//showError(new CommandException ("An unidentified error has occurred")) ;
                     logger.error("Error occurred", ex);
                 }
             }
@@ -1934,6 +2118,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             progressPanel.start();
 
             enableDisable();
+            
+            onProgressButton();
         }
     }
 
@@ -1960,12 +2146,21 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     }
 
     
+    private void closeOpsDependantDialogs ()
+    {
+    	if (differencesManagementDlg != null && differencesManagementDlg.isShowing()) 
+    		differencesManagementDlg.setVisible(false) ;
+    }
+    
+    
     /**
      * {@inheritDoc}.
      */
     @Override
     public void onError(final CommandException ex) {
-       
+    	
+    	closeOpsDependantDialogs () ;
+    	
     	showError(ex);
     }
 
@@ -2077,6 +2272,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	@Override
 	public void onStopped() {
 
+		closeOpsDependantDialogs () ;
+		
 	}
 	
 
@@ -2120,6 +2317,19 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
 
     protected void showError(CommandException ex) {
-        JOptionPane.showMessageDialog(this, ex.toString(), getLocalizedString("Error"), JOptionPane.OK_OPTION);
+
+    	errorLogPanel.add(ex.getMessage(), LogPanel.LogType.ERROR); 
+    	
+    	if (errorDialog != null && errorDialog.isVisible())
+    		errorDialog.setVisible(false);
+    	
+		errorDialog = new ErrorDlg (owner, errorLogPanel, stringsBundle) ;
+		errorDialog.setTitle(getLocalizedString("Error"));
+		errorDialog.setResizable(true);
+		errorDialog.setModal(true);
+		errorDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+		errorDialog.pack();	
+		center (errorDialog) ;
+		errorDialog.setVisible(true);
     }
 }

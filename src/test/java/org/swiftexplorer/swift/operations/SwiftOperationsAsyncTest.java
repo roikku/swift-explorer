@@ -81,17 +81,15 @@ public class SwiftOperationsAsyncTest {
     public void shouldSignalCommandException() throws InterruptedException {
     	try
     	{
-	        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, stopRequester, callback); // container
-	                                                                                                          // does
-	                                                                                                          // not
-	                                                                                                          // exist.
+    		// container does not exist.
+	        ops.createStoredObjects(account.getContainer("x"), new File[] { new File("pom.xml") }, stopRequester, callback); 
     	}
     	catch (IOException e)
     	{
     		logger.error("Error occurred while creating stored object", e) ;
     	}
         
-        Thread.sleep(500L);
+        Thread.sleep(1000L);
         Mockito.verify(callback, Mockito.atLeastOnce()).onStart();
         Mockito.verify(callback, Mockito.atLeastOnce()).onError(Mockito.any(CommandException.class));
         Mockito.verify(callback, Mockito.atLeastOnce()).onDone();

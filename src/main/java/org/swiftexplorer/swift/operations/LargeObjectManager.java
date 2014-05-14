@@ -36,8 +36,10 @@
 
 package org.swiftexplorer.swift.operations;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +56,7 @@ import org.javaswift.joss.model.Container;
 import org.javaswift.joss.model.StoredObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.swiftexplorer.swift.instructions.FastSegmentationPlanFile;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
 import org.swiftexplorer.util.FileUtils;
@@ -72,14 +75,15 @@ class LargeObjectManager {
 	} ;
 	
     
+	
     // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractStoredObject.java 
     // and adapted here.
-    public void uploadObjectAsSegments(StoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    public void uploadObjectAsSegments(StoredObject obj, File file, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
     {    	
     	Container segmentsContainer = getSegmentsContainer (obj, true) ;
     	
     	AbstractContainer abstractContainer = (AbstractContainer)segmentsContainer ;
-    	uploadSegmentedObjects(abstractContainer, (AbstractStoredObject)obj, uploadInstructions, size, progInfo, callback);
+    	uploadSegmentedObjects(abstractContainer, (AbstractStoredObject)obj, file, uploadInstructions, size, progInfo, callback);
     	
     	StringBuilder sb = new StringBuilder () ;
     	sb.append(segmentsContainer.getName()) ;
@@ -90,6 +94,12 @@ class LargeObjectManager {
 				        .setContentType(uploadInstructions.getContentType()
 	        		);
         obj.uploadObject(manifest);
+    }
+    
+    
+    public void uploadObjectAsSegments(StoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    {    	
+    	uploadObjectAsSegments(obj, null, uploadInstructions, size, progInfo, callback) ;
     }
 
 
@@ -106,6 +116,27 @@ class LargeObjectManager {
     		return false ;
     	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;    	
     	return segObj != null && segObj.exists() ;
+    }
+    
+    
+    public String getSumOfSegmentsMd5 (StoredObject obj)
+    {
+    	if (obj == null)
+    		return FileUtils.emptyMd5 ;
+    	List<StoredObject> segments = getSegmentsList (obj) ;
+    	StringBuilder sb = new StringBuilder () ;
+    	for (StoredObject so : segments){
+    		sb.append(so.getEtag()) ;
+    	}
+    	InputStream stream = new java.io.ByteArrayInputStream (sb.toString().getBytes(StandardCharsets.UTF_8));
+    	try 
+    	{
+			return FileUtils.readAllAndgetMD5(stream) ;
+		} 
+    	catch (IOException e) {
+			logger.error("Error occurred while computing md5 value", e) ;
+		}
+    	return "" ;
     }
 	
     
@@ -134,6 +165,25 @@ class LargeObjectManager {
     }
     
     
+    /*
+     * The object might have been segmented using another application, or using 
+     * a different segmentSize value (than the one currently set). This method 
+     * tries to return the real segment size of an existing object (it reads and 
+     * returns the size of the first segment).
+     */
+    public long getActualSegmentSize (StoredObject obj)
+    {
+    	final long notFound = -1 ;
+    	Container segCont = getSegmentsContainer (obj, false) ;
+    	if (segCont == null || !segCont.exists())
+    		return notFound ;
+    	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;
+    	if (segObj == null || !segObj.exists())
+    		return notFound ;
+    	return segObj.getContentLength() ;
+    }
+    
+    
     private Container getSegmentsContainer (StoredObject obj, boolean createIfNeeded)
     {
     	StringBuilder segmentsContainerName = new StringBuilder () ;
@@ -152,7 +202,7 @@ class LargeObjectManager {
     
     // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractContainer.java 
     // and adapted here.
-    private void uploadSegmentedObjects(AbstractContainer abstractContainer, AbstractStoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    private void uploadSegmentedObjects(AbstractContainer abstractContainer, AbstractStoredObject obj, File file, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
     {
     	if (size < uploadInstructions.getSegmentationSize())
     		throw new AssertionError (String.format("The file size (%d) must be greater than the segmentation size (%d)", size, uploadInstructions.getSegmentationSize())) ;
@@ -168,8 +218,8 @@ class LargeObjectManager {
             
             Map<Long, String> md5PlanMap = null ;
             String currMsg = progInfo.getCurrentMessage() ;
-            if (checkExistingSegments && !obj.exists())
-            	md5PlanMap = getMd5PlanMap (uploadInstructions, obj, progInfo) ;
+            if (checkExistingSegments /*&& !obj.exists()*/)
+            	md5PlanMap = getMd5PlanMap (uploadInstructions, obj, file, progInfo) ;
             SegmentationPlan plan = uploadInstructions.getSegmentationPlan();
             long numSegments = getNumberOfSegments (size, uploadInstructions) ;
             InputStream segmentStream = FileUtils.getInputStreamWithProgressFilter(progInfo, uploadInstructions.getSegmentationSize(), plan.getNextSegment()) ;
@@ -208,6 +258,13 @@ class LargeObjectManager {
         }
     }
     
+
+    @SuppressWarnings("unused")
+	private void uploadSegmentedObjects(AbstractContainer abstractContainer, AbstractStoredObject obj, UploadInstructions uploadInstructions, long size, ProgressInformation progInfo, SwiftCallback callback) 
+    {
+    	uploadSegmentedObjects (abstractContainer, obj, null, uploadInstructions, size, progInfo, callback) ;
+    }
+    
     
     private void cleanUpExtraSegments (AbstractStoredObject obj, long numSegments)
     {
@@ -243,7 +300,7 @@ class LargeObjectManager {
     }
 	
 	
-	private Map<Long, String> getMd5PlanMap (UploadInstructions uploadInstructions, AbstractStoredObject obj, ProgressInformation progInfo) throws IOException
+	private Map<Long, String> getMd5PlanMap (UploadInstructions uploadInstructions, AbstractStoredObject obj, File file, ProgressInformation progInfo) throws IOException
     {
 		if (obj == null /*|| !isSegmented (obj)*/)
 			return java.util.Collections.emptyMap() ;		
@@ -251,7 +308,8 @@ class LargeObjectManager {
 		final int numberOfExistingSegments = listSeg.size() ;
 
     	Map<Long, String> ret = new HashMap<Long, String> () ;
-    	SegmentationPlan plan = uploadInstructions.getSegmentationPlan();
+    	
+    	SegmentationPlan plan = (file == null) ? (uploadInstructions.getSegmentationPlan()) : (new FastSegmentationPlanFile (file, uploadInstructions.getSegmentationSize())) ;
     	InputStream segmentStream = (progInfo == null) ? (plan.getNextSegment()) : (FileUtils.getInputStreamWithProgressFilter(progInfo, uploadInstructions.getSegmentationSize(), plan.getNextSegment())) ;
     	int count = 0 ;
         while (segmentStream != null) 
@@ -269,6 +327,13 @@ class LargeObjectManager {
             ++count ;
         }
         return ret ;
+    }
+	
+	
+	@SuppressWarnings("unused")
+	private Map<Long, String> getMd5PlanMap (UploadInstructions uploadInstructions, AbstractStoredObject obj, ProgressInformation progInfo) throws IOException
+    {
+		return getMd5PlanMap (uploadInstructions, obj, null, progInfo) ;
     }
 	
 	

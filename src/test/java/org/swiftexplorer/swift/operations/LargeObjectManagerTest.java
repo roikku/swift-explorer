@@ -266,4 +266,28 @@ public class LargeObjectManagerTest {
     	assertTrue (initialSegmentCount > newSegmentCount) ;
     	assertTrue (newSegmentCount == TestUtils.getNumberOfSegments (newFileSize, segmentSize)) ;
     }
+    
+    
+    @Test
+    public void shouldReturnSegmentSize() 
+    {
+    	uploadAndCheckSegmentedFile () ;
+    	
+    	StoredObject manifest = container.getObject(objName);
+    	
+    	assertTrue (manifest.exists()) ;
+    	assertTrue (segmentSize == largeObjectManager.getActualSegmentSize(manifest)) ;
+    }
+    
+    
+    @Test
+    public void shouldNotReturnSegmentSize() 
+    {
+    	StoredObject obj = container.getObject(objName);
+    	obj.uploadObject(new byte [] {'a', 'b', 'c'});
+    	
+    	// here obj is not segmented
+    	assertTrue (obj.exists()) ;
+    	assertTrue (-1 == largeObjectManager.getActualSegmentSize(obj)) ;
+    }
 }

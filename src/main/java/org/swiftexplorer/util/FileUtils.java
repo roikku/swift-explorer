@@ -16,6 +16,7 @@ package org.swiftexplorer.util;
 
 
 import org.swiftexplorer.gui.util.SwingUtils;
+import org.swiftexplorer.swift.instructions.FastSegmentationPlanFile;
 
 import java.awt.Component;
 import java.awt.Frame;
@@ -27,13 +28,17 @@ import java.io.FileOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
-
 import java.nio.file.*;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -52,9 +57,12 @@ public class FileUtils {
 	
 	private FileUtils () { super () ; } ;
 	
+	public static final String emptyMd5 = "d41d8cd98f00b204e9800998ecf8427e" ;
 	
 	public static String getMD5 (File file) throws IOException
 	{
+		if (file.isDirectory())
+			return emptyMd5 ;
 		HashCode hc = com.google.common.io.Files.hash(file, Hashing.md5());
 		return (hc != null) ? (hc.toString()) : (null) ;
 	}
@@ -66,11 +74,19 @@ public class FileUtils {
 		try
 		{
 			his = new com.google.common.hash.HashingInputStream (Hashing.md5(), in) ;
-			final int bufferSize = 2097152 ; //1048576 ; //64 * 1024 ;
+			
+			final int bufferSize = 2097152 ;
+			final ReadableByteChannel inputChannel = Channels.newChannel(his);
+			final ByteBuffer buffer = ByteBuffer.allocateDirect(bufferSize);
+			while (inputChannel.read(buffer) != -1) {
+				buffer.clear();
+			}
+			/*
 			byte[] bytesBuffer = new byte[bufferSize] ;
 			int r = his.read(bytesBuffer, 0, bufferSize) ;
 			while (r != -1)
 				r = his.read(bytesBuffer) ;
+			*/
 			HashCode hc = his.hash() ;
 			return (hc != null) ? (hc.toString()) : (null) ;
 		}
@@ -82,12 +98,37 @@ public class FileUtils {
 	}
 	
 	
+    public static String getSumOfSegmentsMd5 (File file, long segmentSize) throws IOException
+    {
+    	if (file == null || segmentSize <= 0)
+    		throw new IllegalArgumentException () ;
+		long size = FileUtils.getFileAttr(Paths.get(file.getPath())).size() ;
+		if (size <= segmentSize){
+			return FileUtils.getMD5(file) ;
+		}
+		else
+		{
+			StringBuilder sb = new StringBuilder () ;
+			FastSegmentationPlanFile segments = new FastSegmentationPlanFile (file, segmentSize) ;
+			InputStream segmentStream = segments.getNextSegment() ;
+			while (segmentStream != null)
+			{
+				// The last segment might  be empty
+				if (segmentStream.available() == 0)
+					break ;
+				sb.append(FileUtils.readAllAndgetMD5(segmentStream)) ;
+				segmentStream = segments.getNextSegment() ;
+			}
+	    	InputStream stream = new java.io.ByteArrayInputStream (sb.toString().getBytes(StandardCharsets.UTF_8));
+			return FileUtils.readAllAndgetMD5(stream) ;
+		}
+    }
+	
+	
 	public static Queue<Path> getAllFilesPath (Path srcDir, boolean inludeDir) throws IOException
 	{
-		if (srcDir == null)
-			return null ;
 		Queue<Path> queue = new ArrayDeque<Path> () ;
-		if (!Files.isDirectory(srcDir))
+		if (srcDir == null || !Files.isDirectory(srcDir))
 			return queue ;
 		
 		TreePathFinder tpf = new TreePathFinder(queue, inludeDir);
