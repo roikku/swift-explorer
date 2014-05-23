@@ -36,6 +36,7 @@ public final class HubicSwift {
 	
 	private static final Gson gson  = new Gson () ;
 	
+	private static final String scope = "credentials.r" ;
 	
 	public static SwiftAccess getSwiftAccess ()
 	{
@@ -46,7 +47,7 @@ public final class HubicSwift {
 		HubicOAuth20ServiceImpl service = (HubicOAuth20ServiceImpl) new ServiceBuilder()
 				.provider(HubicApi.class).apiKey(apiKey).apiSecret(apiSecret)
 				//.scope("account.r,links.rw,usage.r,credentials.r").callback(HubicApi.CALLBACK_URL)
-				.scope("credentials.r").callback(HubicApi.CALLBACK_URL)
+				.scope(scope).callback(HubicApi.CALLBACK_URL)
 				.build();
 		
 		Verifier verif = service.obtainVerifier();
@@ -77,7 +78,8 @@ public final class HubicSwift {
 
 		HubicOAuth20ServiceImpl service = (HubicOAuth20ServiceImpl) new ServiceBuilder()
 				.provider(HubicApi.class).apiKey(apiKey).apiSecret(apiSecret)
-				.scope("account.r,links.rw,usage.r,credentials.r")
+				//.scope("account.r,links.rw,usage.r,credentials.r")
+				.scope(scope)
 				.callback(HubicApi.CALLBACK_URL).build();
 
 		return service.refreshAccessToken(expiredToken);

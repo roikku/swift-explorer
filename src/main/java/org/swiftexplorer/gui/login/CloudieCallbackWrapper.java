@@ -129,4 +129,14 @@ public class CloudieCallbackWrapper implements SwiftCallback {
 	public void onStopped() {
 		this.target.onStopped();
 	}
+
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public void onStoredObjectDeleted(Container container,
+			Collection<StoredObject> storedObjects) {
+		this.target.onStoredObjectDeleted(container, storedObjects);
+	}
 }

@@ -171,7 +171,7 @@ public class SwiftOperationsTest {
 			logger.error("Error occurred while creating stored object", e) ;
 		}
     
-        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+        //Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
         Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.eq(0),
                 Mockito.anyListOf(StoredObject.class));
     }
@@ -209,7 +209,7 @@ public class SwiftOperationsTest {
         
     	ops.uploadFiles(container, object, new File [] {file}, true, stopRequester, callback);
     	
-        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+        //Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
         Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.eq(0),
                 Mockito.anyListOf(StoredObject.class));
         
@@ -240,7 +240,7 @@ public class SwiftOperationsTest {
         
     	ops.uploadFiles(container, pairObjectFile, true, stopRequester, callback);
 
-        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
+        //Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
         Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.eq(0),
                 Mockito.anyListOf(StoredObject.class));
     	
@@ -673,10 +673,9 @@ public class SwiftOperationsTest {
 	    	@SuppressWarnings({ "unchecked", "rawtypes" })
 			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
 	    
-	        ops.refreshDirectoriesOrStoredObjects(container, null, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, null, 0, callback);
 	        
-	        // one time when uploading the directory, one time when calling refreshDirectoriesOrStoredObjects
-	        Mockito.verify(callback, Mockito.times(2)).onNewStoredObjects();
+	        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
 	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
 
 	        // this collection should have only one directory, whose name is directoryName
@@ -707,7 +706,7 @@ public class SwiftOperationsTest {
 
 	        // verify that the uploaded files are correctly listed
 	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
-	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, 0, callback);
 
 	        // onAppendStoredObjects is called one time when calling uploadDirectory, but should not be called again when calling refreshDirectoriesOrStoredObjects
 	        Mockito.verify(callback, Mockito.times(1)).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), Mockito.anyCollectionOf(StoredObject.class));
@@ -744,7 +743,7 @@ public class SwiftOperationsTest {
 			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
 	    
 	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
-	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, 0, callback);
 
 	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
 	        

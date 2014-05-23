@@ -51,7 +51,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
@@ -87,7 +86,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     private volatile long segmentationSize = 104857600 ; // 100MB
     
     private final int numberOfCommandErrorRetry = 5 ;
-    
+
     public SwiftOperationsImpl() {
     	super () ;
     }
@@ -259,6 +258,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		int currentUplodedFilesCount = 0 ;
 		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
+		List<StoredObject> newObjects = new ArrayList<> () ;
+		
         for (File selected : selectedFiles) {
         	
         	if (!keepGoing (stopRequester, callback))
@@ -272,9 +273,12 @@ public class SwiftOperationsImpl implements SwiftOperations {
 
                 StoredObject obj = container.getObject(selected.getName());
                 uploadObject(obj, selected, progInfo, callback) ;
+                
+                newObjects.add(obj) ;
             }
         }
-        reloadContainer(container, callback);
+    	//reloadContainer(container, callback);
+    	addedObjectToContainer(container, newObjects, callback);
         callback.onNumberOfCalls(account.getNumberOfCalls());
     }
 
@@ -293,14 +297,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
     }
 
     
-    /**
-     * {@inheritDoc}.
-     */
-    @Override
-    public synchronized void deleteStoredObjects(Container container, List<StoredObject> storedObjects, StopRequester stopRequester, SwiftCallback callback) {
-    	
-    	CheckAccount () ;
-    	
+    private void deleteStoredObjects(Container container, List<StoredObject> storedObjects, StopRequester stopRequester, boolean notify, SwiftCallback callback) {
+	
         for (StoredObject storedObject : storedObjects) 
         {
         	if (!keepGoing (stopRequester, callback))
@@ -333,9 +331,21 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				logger.debug("Attempt at deleting a non-existing object: " + storedObject.getName());
 				continue ;
 			}
-            callback.onStoredObjectDeleted(container, storedObject);
+			if (notify)
+				callback.onStoredObjectDeleted(container, storedObject);
         }
         callback.onNumberOfCalls(account.getNumberOfCalls());
+	}
+    
+    
+    /**
+     * {@inheritDoc}.
+     */
+    @Override
+    public synchronized void deleteStoredObjects(Container container, List<StoredObject> storedObjects, StopRequester stopRequester, SwiftCallback callback) {
+    	
+    	CheckAccount () ;
+    	deleteStoredObjects (container, storedObjects, stopRequester, true, callback) ;
     }
     
     
@@ -452,6 +462,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		int currentDownloadedFilesCount = 0 ;
 		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
+		List<StoredObject> newObjects = new ArrayList<> () ;
+		
 		try
 		{
 			for (Pair<? extends StoredObject, ? extends File> pair : pairObjectFiles)
@@ -477,11 +489,14 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				totalProgress (currentDownloadedFilesCount, totalFiles, obj, progInfo, true) ;
 				
 				downloadObject (obj, file, progInfo, callback) ;
+				
+				newObjects.add(obj) ;
 			}
 		}
 		finally
 		{
-			reloadContainer(container, callback);
+        	//reloadContainer(container, callback);
+        	addedObjectToContainer(container, newObjects, callback);
 			callback.onNumberOfCalls(account.getNumberOfCalls());
 		}
 	}
@@ -664,7 +679,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     private void reloadContainer(Container container, SwiftCallback callback) {
     	reloadContainer(container, callback, true);
     }
-    
+
     
     private void reloadContainer(Container container, SwiftCallback callback, boolean showProgress) {
     	
@@ -697,17 +712,113 @@ public class SwiftOperationsImpl implements SwiftOperations {
     }
     
     
+    private void addedObjectToContainer(Container container, List<StoredObject> newObjects, SwiftCallback callback) {
+    	
+    	if (container == null)
+    		throw new AssertionError ("container cannot be null") ;
+    	
+    	container.reload();
+
+    	if (newObjects == null || newObjects.isEmpty())
+    		return ;
+    	
+		int page = 0;
+		while (page * MAX_PAGE_SIZE < newObjects.size())
+		{
+			callback.onAppendStoredObjects(container, page, newObjects.subList(page * MAX_PAGE_SIZE, Math.min(newObjects.size(), (page + 1) * MAX_PAGE_SIZE))) ;
+			++page ;
+		}
+    }
+    
+    
+    private void removedObjectFromContainer(Container container, List<StoredObject> deletedObjects, SwiftCallback callback) {
+    	
+    	if (container == null)
+    		throw new AssertionError ("container cannot be null") ;
+    	
+    	container.reload();
+
+    	if (deletedObjects == null || deletedObjects.isEmpty())
+    		return ;
+
+    	callback.onStoredObjectDeleted (container, deletedObjects) ;
+    }
+    
+    
     /**
      * {@inheritDoc}.
      */
 	@Override
-	public void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback) {
+	public void refreshDirectoriesOrStoredObjects(Container container, Directory parent, long depth, SwiftCallback callback) {
 		
 		CheckAccount () ;
 		
-		loadContainerDirectory (container, parent, callback) ;
-		callback.onNumberOfCalls(account.getNumberOfCalls());
+		try
+		{
+			if (depth <= 0)
+				loadContainerDirectory (container, parent, callback) ;
+			else 
+			{
+				if (parent == null)
+					callback.onNewStoredObjects();
+				List<StoredObject> list = getContainedStoredObject (container, parent, depth) ;
+				int page = 0;
+				while (page * MAX_PAGE_SIZE < list.size())
+				{
+					callback.onAppendStoredObjects(container, page, list.subList(page * MAX_PAGE_SIZE, Math.min(list.size(), (page + 1) * MAX_PAGE_SIZE))) ;
+					++page ;
+				}
+			}
+			callback.onNumberOfCalls(account.getNumberOfCalls());
+    	}
+	    catch (OutOfMemoryError ome)
+	    {
+	    	dealWithOutOfMemoryError (ome, "refreshDirectoriesOrStoredObjects", callback) ;
+	    }
 	}
+	
+	
+    private List<StoredObject> getContainedStoredObject(Container container, Directory parent, long depth) 
+    {
+    	if (container == null)
+    		throw new AssertionError ("container cannot be null") ;
+    	
+    	List<StoredObject> ret = new ArrayList<StoredObject> () ;
+    	
+    	final String prefix ;
+    	Character delimiter = SwiftUtils.separator.charAt(0) ;
+    	List<DirectoryOrObject> directoriesOrObjects = new ArrayList<DirectoryOrObject> () ;
+    	if (parent == null)
+    		prefix = "" ;
+    	else
+    		prefix = parent.getName() + delimiter ;
+ 
+    	directoriesOrObjects.addAll(container.listDirectory(prefix, delimiter, null, MAX_PAGE_SIZE)) ;
+        while (!directoriesOrObjects.isEmpty()) 
+        {	        	
+        	List<StoredObject> listStoredObjects = new ArrayList<StoredObject> (directoriesOrObjects.size()) ;
+        	for (DirectoryOrObject dirOrobj : directoriesOrObjects)
+        	{
+        		if (dirOrobj == null)
+        			continue ;
+        		if (depth > 0)
+        		{
+        			if (dirOrobj.isDirectory())
+        				ret.addAll(getContainedStoredObject (container, dirOrobj.getAsDirectory(), depth - 1)) ;
+        			else if (dirOrobj.isObject() && SwiftUtils.isDirectory(dirOrobj.getAsObject()))
+        				ret.addAll(getContainedStoredObject (container, new Directory (dirOrobj.getAsObject().getName(), delimiter), depth - 1)) ;
+        		}
+        		if (dirOrobj.isObject())
+        			listStoredObjects.add(dirOrobj.getAsObject()) ;
+        	}
+        	ret.addAll(listStoredObjects) ;
+
+            String marker = directoriesOrObjects.get(directoriesOrObjects.size() - 1).getName() ;
+            directoriesOrObjects.clear () ;
+            directoriesOrObjects.addAll(container.listDirectory(prefix, delimiter, marker, MAX_PAGE_SIZE)) ;
+        }
+        return ret ;
+    }
 	
 	
     private void loadContainerDirectory(Container container, Directory parent, SwiftCallback callback) 
@@ -881,7 +992,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * @throws IOException 
      */
 	@Override
-	public void findDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException
+	public synchronized void findDifferences (Container container, StoredObject remote, File local, ResultCallback<Collection<Pair<? extends ComparisonItem, ? extends ComparisonItem> > > resultCallback, StopRequester stopRequester, SwiftCallback callback) throws IOException
 	{
 		CheckAccount () ;
 		
@@ -1081,6 +1192,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		int currentUplodedFilesCount = 0 ;
 		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
 		
+		List<StoredObject> newObjects = new ArrayList<> () ;
+		
 		try
 		{
 			for (Path path : filesQueue)
@@ -1110,6 +1223,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				{
 					uploadObject (obj, path.toFile(), progInfo, callback) ;
 				}
+				newObjects.add(obj) ;
 				callback.onNumberOfCalls(account.getNumberOfCalls());
 			}
 			
@@ -1120,7 +1234,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		}
 		finally
 		{
-			reloadContainer(container, callback);
+        	//reloadContainer(container, callback);
+        	addedObjectToContainer(container, newObjects, callback);
 			callback.onNumberOfCalls(account.getNumberOfCalls());
 		}
 	}
@@ -1143,6 +1258,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		int totalFiles = files.length ;
 		int currentUplodedFilesCount = 0 ;
 		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
+		List<StoredObject> newObjects = new ArrayList<> () ;
 		
 		try
 		{
@@ -1167,11 +1284,14 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				StoredObject obj = container.getObject(objectPath.toString());
 				
 				uploadFile (obj, file, progInfo, overwriteAll, callback) ;
+				
+				newObjects.add(obj) ;
 			}
 		}
 		finally
 		{
-			reloadContainer(container, callback);
+        	//reloadContainer(container, callback);
+        	addedObjectToContainer(container, newObjects, callback);
 			callback.onNumberOfCalls(account.getNumberOfCalls());
 		}
 	}
@@ -1192,6 +1312,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		int totalFiles = pairObjectFiles.size() ;
 		int currentUplodedFilesCount = 0 ;
 		ProgressInformation progInfo = new ProgressInformation (callback, false) ;
+		
+		List<StoredObject> newObjects = new ArrayList<> () ;
 		
 		try
 		{
@@ -1215,11 +1337,14 @@ public class SwiftOperationsImpl implements SwiftOperations {
 				totalProgress (currentUplodedFilesCount, totalFiles, Paths.get(file.toURI()), progInfo, true) ;
 				
 				uploadFile (obj, file, progInfo, overwriteAll, callback) ;
+				
+				newObjects.add(obj) ;
 			}
 		}
 		finally
 		{
-			reloadContainer(container, callback);
+        	//reloadContainer(container, callback);
+        	addedObjectToContainer(container, newObjects, callback);
 			callback.onNumberOfCalls(account.getNumberOfCalls());
 		}
 	}
@@ -1266,8 +1391,9 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		else
 		{
 			createDirectory (obj) ;
+        	//reloadContainer(container, callback);
+        	addedObjectToContainer(container, Arrays.asList(obj), callback);
 		}
-		reloadContainer(container, callback);
 		callback.onNumberOfCalls(account.getNumberOfCalls());
 	}
 	
@@ -1292,6 +1418,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	
     	if (!SwiftUtils.isDirectory(storedObject))
     		throw new AssertionError ("The object to delete must be a directory.") ;
+    	
+    	List<StoredObject> deletedObjects = new ArrayList<> () ;
     	
     	try
     	{
@@ -1320,10 +1448,12 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	        	progInfo.setCurrentProgress(1) ;
 	        	totalProgress (currentUplodedFilesCount, totalFiles, so, progInfo, true) ;
 	
-	        	deleteStoredObjects (container, Arrays.asList(so), stopRequester, callback) ;
+	        	deleteStoredObjects (container, Arrays.asList(so), stopRequester, false, callback) ;
+	        	deletedObjects.add(so) ;
 	        }
 	        logger.info("Deleted directory '{}'", storedObject.getName());
-	        deleteStoredObjects (container, Arrays.asList(storedObject), stopRequester, callback) ;
+	        deleteStoredObjects (container, Arrays.asList(storedObject), stopRequester, false, callback) ;
+	        deletedObjects.add(storedObject) ;
 		}
 	    catch (OutOfMemoryError ome)
 	    {
@@ -1331,7 +1461,8 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	    }
     	finally
     	{
-	        reloadContainer(container, callback);
+        	//reloadContainer(container, callback);
+        	removedObjectFromContainer(container, deletedObjects, callback);
 	        callback.onNumberOfCalls(account.getNumberOfCalls());
     	}
 	}

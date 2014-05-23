@@ -86,7 +86,6 @@ public class HubicOAuth20ServiceImpl implements OAuthService {
 			logger.error("Error occurred while refreshing the access token", e);
 		}
 		
-		
 		Response response = request.send();
 		Token newToken = api.getAccessTokenExtractor().extract(response.getBody());		
 		// We need to keep the initial RowResponse because it contains the refresh token

@@ -14,10 +14,36 @@
 
 package org.swiftexplorer.gui.util;
 
+import java.util.Observable;
+import java.util.Observer;
+
 import org.swiftexplorer.swift.operations.SwiftOperations;
 
-public class SwiftOperationStopRequesterImpl implements SwiftOperations.StopRequester {
+public class SwiftOperationStopRequesterImpl implements SwiftOperations.StopRequester, Observer {
 
+	public static class Stopper extends Observable  implements SwiftOperations.StopRequester
+	{
+		private volatile boolean stopRequested = false ;
+		
+		public void stop ()
+		{
+			stopRequested = true ;
+			setChanged();
+			notifyObservers () ;
+		}
+
+		@Override
+		public synchronized void deleteObservers() {
+			stopRequested = false ;
+			super.deleteObservers();
+		}
+
+		@Override
+		public boolean isStopRequested() {
+			return stopRequested;
+		}
+	}
+	
 	private volatile boolean stopRequested = false ;
 	
 	@Override
@@ -28,5 +54,12 @@ public class SwiftOperationStopRequesterImpl implements SwiftOperations.StopRequ
 	public synchronized void stop ()
 	{
 		stopRequested = true ;
+	}
+
+	@Override
+	public void update(Observable o, Object arg) {
+		stop () ;
+		if (o != null)
+			o.deleteObserver(this);
 	}
 }

@@ -43,6 +43,20 @@ public class StoredObjectsTreeModel implements TreeModel
 		
 		private TreeUtils () { super () ; } ;
 	    
+	    private static boolean isTreePathValid (TreePath path)
+	    {
+	    	if (path == null)
+	    		return false ;
+			Object obj = path.getLastPathComponent() ;
+			if (obj != null && (obj instanceof StoredObjectsTreeModel.TreeNode))
+			{
+				StoredObjectsTreeModel.TreeNode tn = (StoredObjectsTreeModel.TreeNode)obj ;
+				if (tn.getStoredObject() != null && !tn.getStoredObject().exists())
+					return false ;
+			}
+			return true ;
+	    }
+	    
 	    public static List<TreePath> getTreeExpansionState (JTree tree)
 	    {
 	    	if (tree == null)
@@ -57,12 +71,29 @@ public class StoredObjectsTreeModel implements TreeModel
 	    	return ret ;
 	    }
 	    
+	    public static void getTreeExpansionState (JTree tree, List<TreePath> list)
+	    {
+	    	if (list == null)
+	    		return ;
+	    	list.clear();
+	    	if (tree == null)
+	    		return ;
+	    	for (int i = 0 ; i < tree.getRowCount() ; i++)
+	    	{
+	    		TreePath path = tree.getPathForRow(i) ;
+	    		if (tree.isExpanded(path))
+	    			list.add (path) ;
+	    	}
+	    }
+	    
 	    public static void setTreeExpansionState (JTree tree, List<TreePath> list)
 	    {
 	    	if (list == null || tree == null)
 	    		return ;
 	    	for (TreePath path : list)
 	    	{
+	    		if (!isTreePathValid (path))
+	    			continue ;
 	    		tree.expandPath(path);
 	    	}
 	    }
@@ -120,8 +151,7 @@ public class StoredObjectsTreeModel implements TreeModel
 		private final String nodeName ;
 		private final boolean isRoot ;
 		private final Container container ;
-		
-		
+
 		public static TreeNodeImpl buildRootNode (Container container)
 		{
 			String contName = (container == null) ? ("") : (container.getName()) ;
@@ -240,11 +270,13 @@ public class StoredObjectsTreeModel implements TreeModel
 	
 	private final Map<TreeNode, Set<TreeNode> > mapParentChildMap = Collections.synchronizedMap(new TreeMap<TreeNode, Set<TreeNode> >()) ;
 	
+	private final boolean allowLazyLoading ;
 	
 	public StoredObjectsTreeModel(Container rootContainer, Collection<StoredObject> allStoredObjects) {
 		super();
 		rootNode = TreeNodeImpl.buildRootNode(rootContainer) ; 
 		initialize (allStoredObjects) ;
+		allowLazyLoading = true ;
 	}
 	
 	
@@ -385,29 +417,42 @@ public class StoredObjectsTreeModel implements TreeModel
 			return 0;
 		Set<TreeNode> children = mapParentChildMap.get(parent);
 		if (children == null)
-			return 0;
+			return 0;		
 		return children.size() ;	
 	}
 	
 
 	@Override
-	public synchronized boolean isLeaf(Object node) {
+	public synchronized boolean isLeaf(Object node) {		
 		if (!(node instanceof TreeNode))
 			return false ;
 		if (((TreeNode)node).isRoot())
 			return mapParentChildMap.size() == 1 ;
+		if (allowLazyLoading)
+		{
+			if (isFolder ((TreeNode)node))
+				return false ;
+		}
 		if(!mapParentChildMap.containsKey((TreeNode)node))
 			return true ;
 		if (mapParentChildMap.get((TreeNode)node) == null)
 			return true ;
 		if (!mapParentChildMap.get((TreeNode)node).isEmpty())
 			return false ;
-		StoredObject so = ((TreeNode)node).getStoredObject() ;
-		if (so == null)
-			return false ; // a folder (virtual)
-		if ("application/directory".equalsIgnoreCase(so.getContentType()))
-			return false ; // a folder
+		if (isFolder ((TreeNode)node))
+			return false ;
 		return true;
+	}
+	
+	
+	private boolean isFolder (TreeNode node)
+	{
+		StoredObject so = node.getStoredObject() ;
+		if (so == null)
+			return true ; // a folder (virtual)		
+		if (SwiftUtils.directoryContentType.equalsIgnoreCase(so.getContentType()))
+			return true ; // a folder
+		return false ;
 	}
 
 	

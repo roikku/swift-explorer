@@ -124,6 +124,11 @@ public interface SwiftOperations {
         void onStoredObjectDeleted(Container container, StoredObject storedObject);
 
         /**
+         * @param storedObjects the deleted stored objects.
+         */
+        void onStoredObjectDeleted(Container container, Collection<StoredObject> storedObjects);
+        
+        /**
          * signals the progress of the total task and current task.
          * @param totalProgress, the progress of the total task, should be between 0 to 1.
          * @param totalMsg, and arbitrary message
@@ -392,9 +397,10 @@ public interface SwiftOperations {
      * refreshes the directories and stored object list in the given container under the given parent.
      * @param container the container.
      * @param parent the parent directory.
+     * @param depth the depth in terms of sub-directories to refresh
      * @param callback the callback to call when done.
      */
-    void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback);
+    void refreshDirectoriesOrStoredObjects(Container container, Directory parent, long depth, SwiftCallback callback);
     
     
     /**

@@ -40,7 +40,6 @@
 package org.swiftexplorer.gui;
 
 import org.swiftexplorer.SwiftExplorer;
-import org.swiftexplorer.config.Configuration;
 import org.swiftexplorer.config.HasConfiguration;
 import org.swiftexplorer.config.localization.HasLocalizationSettings.LanguageCode;
 import org.swiftexplorer.config.localization.HasLocalizationSettings.RegionCode;
@@ -63,6 +62,7 @@ import org.swiftexplorer.gui.settings.ProxyPanel;
 import org.swiftexplorer.gui.settings.ProxyPanel.ProxyCallback;
 import org.swiftexplorer.gui.settings.SwiftPanel;
 import org.swiftexplorer.gui.util.AsyncWrapper;
+import org.swiftexplorer.gui.util.ComputerSleepingManager;
 import org.swiftexplorer.gui.util.DoubleClickListener;
 import org.swiftexplorer.gui.util.FileTypeIconFactory;
 import org.swiftexplorer.gui.util.GuiTreadingUtils;
@@ -98,7 +98,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -107,9 +106,11 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -149,17 +150,20 @@ import javax.swing.SwingWorker;
 import javax.swing.border.Border;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.ExpandVetoException;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
-import org.apache.commons.io.IOUtils;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -188,10 +192,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private final DefaultListModel<StoredObject> storedObjects = new DefaultListModel<StoredObject>();
     private final JList<StoredObject> storedObjectsList = new JList<StoredObject>(storedObjects);
-    private final List<StoredObject> allStoredObjects = Collections.synchronizedList(new ArrayList<StoredObject>());
+    private final Collection<StoredObject> allStoredObjects ;
 
-    private final JTree tree = new JTree (new Object[] {}) ;
-    private List<TreePath> treeExpansionState = null ;
+    private final JTree tree = new JTree (new Object[] {}) ; 
+    private List<TreePath> treeExpansionState = null ; 
+    private final Set<String> treeHasBeenExpandedNodeSet = new HashSet<> () ;
     
     private final JTextField searchTextField = new JTextField(16);
     private final JButton progressButton = new JButton() ;
@@ -250,7 +255,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     private final SwiftOperations ops;
     private SwiftOperations.SwiftCallback callback;
-    private volatile SwiftOperationStopRequesterImpl stopRequester = null ;
+    private volatile SwiftOperationStopRequesterImpl.Stopper stopper = new SwiftOperationStopRequesterImpl.Stopper () ;
     private PreviewPanel previewPanel = new PreviewPanel();
     private StatusPanel statusPanel;
     private boolean loggedIn;
@@ -271,7 +276,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private final LogPanel errorLogPanel = new LogPanel () ;
     private ErrorDlg errorDialog ;
-
+    
+    
     /**
      * creates MainPanel and immediately logs in using the given credentials.
      * @param login the login credentials.
@@ -318,6 +324,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         //
         this.config = config ;
         this.stringsBundle = stringsBundle ;
+        
+    	allStoredObjects = Collections.synchronizedSortedSet(new TreeSet<StoredObject>());
                 
         initMenuActions () ;
         //
@@ -353,6 +361,25 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				else if (node.getStoredObject() != null)
 					storedObjectsList.setSelectedValue(node.getStoredObject(), true); 
 
+			}});
+        
+     	
+    	tree.addTreeWillExpandListener(new TreeWillExpandListener () {
+
+			@Override
+			public void treeWillExpand(TreeExpansionEvent event) throws ExpandVetoException 
+			{
+				Container container = getSelectedContainer();
+				if (container == null)
+					return ;
+				TreePath tps = event.getPath() ;
+				expandNode (container, tps) ;
+			}
+
+			@Override
+			public void treeWillCollapse(TreeExpansionEvent event)
+					throws ExpandVetoException {
+				// here, we do nothing
 			}});
         
         tree.setCellRenderer(new DefaultTreeCellRenderer () {
@@ -449,6 +476,67 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         bind();
         //
         enableDisable();
+    }
+    
+    
+    private void expandNode (Container container, final TreePath treePath)
+    {
+		if (treePath == null || container == null)
+			return ;
+					
+		Object sel = treePath.getLastPathComponent() ;
+		if (sel == null || !(sel instanceof StoredObjectsTreeModel.TreeNode))
+			return ;
+		StoredObjectsTreeModel.TreeNode node = (StoredObjectsTreeModel.TreeNode)sel;	
+		
+		if (node == null || node.isRoot()){
+			return ;
+		}
+		
+		TreeModel tm = tree.getModel() ;
+		if (tm != null && tm.getChildCount(node) > 0)
+		{
+			treeHasBeenExpandedNodeSet.add(node.getObjectName()) ;
+			return ;
+		}
+		
+		// intercept the callback with wrapper to expand the node
+		final SwiftCallback cb = GuiTreadingUtils.guiThreadSafe(
+				SwiftCallback.class, new CloudieCallbackWrapper(callback) {
+				    @Override
+				    public void onAppendStoredObjects(final Container container, int page, final Collection<StoredObject> sos) {
+				    	
+				    	if (treeExpansionState != null)
+				    		treeExpansionState.add(treePath) ;
+				    	
+				    	super.onAppendStoredObjects(container, page, sos) ;
+				    }
+				});
+		
+		if (node.isVirtual()){
+			loadDirectory (container, node.getObjectName(), cb) ;
+		}
+		else if (node.getStoredObject() != null){
+			StoredObject obj = node.getStoredObject() ;
+			if (SwiftUtils.isDirectory(obj))
+				loadDirectory (container, obj.getName(), cb) ;
+		}
+    }
+    
+    
+    private void loadDirectory (Container container, String dirName, SwiftCallback clbk)
+    {
+    	if (container == null)
+    		return ;
+    	
+		if (treeHasBeenExpandedNodeSet.contains(dirName))
+			return ;
+		treeHasBeenExpandedNodeSet.add(dirName) ;
+
+		treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState (tree) ;
+		
+		Directory d = new Directory (dirName, SwiftUtils.separator.charAt(0)) ;
+		ops.refreshDirectoriesOrStoredObjects(container, d, 0, clbk);	
     }
     
     
@@ -617,7 +705,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     public static Icon getContentTypeIcon(StoredObject storedObject) 
     {
     	if (storedObject == null)
-    		return MainPanel.getIcon("folder_error.png"); ;
+    		return MainPanel.getIcon("folder_error.png"); 
     	
     	Icon ret = null ;
         String contentType = storedObject.getContentType() ;
@@ -670,10 +758,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     		return ;
     	}
     	
-    	final List<StoredObject> storedObjectsList ;
+    	final Collection<StoredObject> storedObjectsList ;
     	String filter = searchTextField.getText();
 
 		if (restore)
+			//StoredObjectsTreeModel.TreeUtils.getTreeExpansionState (tree, treeExpansionState) ;
 			treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState(tree) ;
 		
     	if (filter != null && !filter.isEmpty())
@@ -695,7 +784,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         if (restore && treeExpansionState != null && !treeExpansionState.isEmpty())
         	StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
     }
-    
+
     
     private void updateTree (Collection<StoredObject> list)
     {
@@ -781,7 +870,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     public void enableOperationMenu() {
     	
     	boolean isBusy = busyCnt.get() > 0 ;
-    	boolean isStoppable = (stopRequester != null && !stopRequester.isStopRequested()) ;
+    	boolean isStoppable = (stopper.countObservers() > 0) ; // (stopRequester != null && !stopRequester.isStopRequested()) ;
     	
     	stopButtonAction.setEnabled(loggedIn && isBusy && isStoppable);
     }
@@ -1445,10 +1534,21 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     
     protected void onPreviewStoredObject() {    	
-        StoredObject obj = single(getSelectedStoredObjects());
-        if (obj.getContentLength() < 16 * 1024 * 1024) {
-            previewPanel.preview(obj.getContentType(), obj.downloadObject());
-        }
+
+		StoredObject obj = single(getSelectedStoredObjects());
+		if (SwiftUtils.isDirectory(obj))
+		{
+			Container container = getSelectedContainer();
+			if (container == null)
+				return ;
+			loadDirectory (container, obj.getName(), callback) ;	
+		}
+		else
+		{
+	        if (obj.getContentLength() < 16 * 1024 * 1024) {
+	            previewPanel.preview(obj.getContentType(), obj.downloadObject());
+	        }
+		}
     }
 
     
@@ -1755,9 +1855,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private SwiftOperationStopRequesterImpl getNewSwiftStopRequester ()
     {
-    	if (stopRequester != null) 
-    		throw new IllegalStateException () ;
-    	stopRequester = new SwiftOperationStopRequesterImpl () ;
+    	SwiftOperationStopRequesterImpl stopRequester = new SwiftOperationStopRequesterImpl () ;
+    	stopper.addObserver(stopRequester);
     	return stopRequester ;
     }
     
@@ -2043,8 +2142,15 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     
     public void refreshFiles(Container selected) {
+    	
+        //storedObjects.clear();
+        //if (selected != null)
+        //	ops.refreshStoredObjects(selected, callback);
+
         storedObjects.clear();
-        ops.refreshStoredObjects(selected, callback);
+        treeHasBeenExpandedNodeSet.clear();
+        if (selected != null)
+        	ops.refreshDirectoriesOrStoredObjects(selected, null, 0, callback);
     }
     
     
@@ -2065,12 +2171,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     public void onStop ()
     {
-    	if (stopRequester != null)
-    	{
-    		if (confirm (getLocalizedString("confirm_stop_operation")))
-    			stopRequester.stop() ;
-    		enableOperationMenu() ;
-    	}
+		if (confirm (getLocalizedString("confirm_stop_operation")))
+			stopper.stop() ;
+		enableOperationMenu() ;
     }
     
     
@@ -2119,6 +2222,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
             enableDisable();
             
+            ComputerSleepingManager.INSTANCE.keepAwake(true);
+            
             onProgressButton();
         }
     }
@@ -2134,6 +2239,9 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
             statusPanel.onEnd();
             
+            stopper.deleteObservers(); // because busyCnt equals zero
+            
+            ComputerSleepingManager.INSTANCE.keepAwake(false);
             
             progressButton.setEnabled(false);
             progressPanel.done() ;
@@ -2141,7 +2249,6 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             if (progressWindow != null)
             	progressWindow.setVisible(false) ;
         }
-        stopRequester = null ;
         enableDisable();
     }
 
@@ -2207,15 +2314,38 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
      * {@inheritDoc}.
      */
     @Override
-    public void onNewStoredObjects() {
+    public void onStoredObjectDeleted(final Container container, final Collection<StoredObject> storedObjects) {
 
-    	treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState(tree) ;
-    			
+        if (isContainerSelected() && getSelectedContainer().equals(container)) 
+        {
+        	allStoredObjects.removeAll(storedObjects);
+	    	StoredObject obj = storedObjectsList.getSelectedValue() ;
+	    	this.storedObjects.clear();
+		    for (StoredObject storedObject : allStoredObjects) {
+		        if (isFilterIncluded(storedObject)) {
+		        	this.storedObjects.addElement(storedObject);
+		        }
+		    }
+		    if (obj != null && obj.exists())
+		    	storedObjectsList.setSelectedValue(obj, true);
+		    
+		    buildTree (true) ;
+        }
+    }
+    
+    
+    /**
+     * {@inheritDoc}.
+     */
+    @Override
+    public void onNewStoredObjects() {
+	
         searchTextField.setText("");
         storedObjects.clear();
         allStoredObjects.clear();
         statusPanel.onDeselectStoredObject();
-        
+        treeHasBeenExpandedNodeSet.clear();
+
         buildTree (true) ;
     }
 
@@ -2228,23 +2358,35 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
 		if (isContainerSelected() && getSelectedContainer().equals(container)) {
 		    allStoredObjects.addAll(sos);
-		    
+
+	    	/*
 		    for (StoredObject storedObject : sos) {
 		        if (isFilterIncluded(storedObject)) {
 		            storedObjects.addElement(storedObject);
 		        }
 		    }
 		    
-		    updateTree (sos) ;
-		    StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
-		    
-		    // TODO: seems to be necessary to avoid freezing for huge amount of objects
-		    // Must be checked
-		    // ...
+	    	updateTree (sos) ;
+	    	StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
+
 		    System.gc() ;
+		    */
+	    	
+	    	StoredObject obj = storedObjectsList.getSelectedValue() ;
+	    	storedObjects.clear();
+		    for (StoredObject storedObject : allStoredObjects) {
+		        if (isFilterIncluded(storedObject)) {
+		            storedObjects.addElement(storedObject);
+		        }
+		    }
+		    if (obj != null)
+		    	storedObjectsList.setSelectedValue(obj, true);
+		    
+	    	updateTree (sos) ;
+	    	StoredObjectsTreeModel.TreeUtils.setTreeExpansionState(tree, treeExpansionState);
 		}
     }
-    
+        
     
     /**
      * {@inheritDoc}.
@@ -2252,7 +2394,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 	@Override
 	public void onProgress(final double totalProgress, String totalMsg, final double currentProgress, final String currentMsg) {
 
-		if (stopRequester != null && stopRequester.isStopRequested())
+		if (stopper.isStopRequested())
 		{
 			StringBuilder sb = new StringBuilder () ;
 			sb.append ("<html>") ;
@@ -2263,8 +2405,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 		}
 		progressPanel.setProgress(totalProgress, totalMsg, currentProgress, currentMsg);
 	}
-	
-	
+
 	
     /**
      * {@inheritDoc}.
@@ -2294,9 +2435,6 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	statusPanel.onSelectStoredObjects(Collections.singletonList(obj));
     }
 
-    //
-    //
-    //
 
     /**
      * @return true if the window can close.
