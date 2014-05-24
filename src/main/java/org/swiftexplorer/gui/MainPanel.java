@@ -98,10 +98,12 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1975,15 +1977,31 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     protected void onGetInfoStoredObject() 
     {
+    	String charset = "UTF-8";
+    	
         StoredObject obj = single(getSelectedStoredObjects());
-        
         List<LabelComponentPanel> panels = new ArrayList<LabelComponentPanel>();
-        panels.add(buildLabelComponentPanel("Object name", obj.getName()));
-        panels.add(buildLabelComponentPanel("Object path", obj.getPath()));
-        panels.add(buildLabelComponentPanel("Content type", obj.getContentType()));
-        panels.add(buildLabelComponentPanel("Content length", FileUtils.humanReadableByteCount(obj.getContentLength(), true)));
-        panels.add(buildLabelComponentPanel("E-tag", obj.getEtag()));
-        panels.add(buildLabelComponentPanel("Last modified", obj.getLastModified()));
+        try 
+        {	
+	        panels.add(buildLabelComponentPanel("Object name", obj.getName()));
+	        panels.add(buildLabelComponentPanel("Object path", URLDecoder.decode(obj.getPath(), charset)));
+	        panels.add(buildLabelComponentPanel("Content type", obj.getContentType()));
+	        panels.add(buildLabelComponentPanel("Content length", FileUtils.humanReadableByteCount(obj.getContentLength(), true)));
+	        panels.add(buildLabelComponentPanel("E-tag", obj.getEtag()));
+	        panels.add(buildLabelComponentPanel("Last modified", obj.getLastModified()));
+	        
+	        if (obj.getManifest() != null)
+	        {
+	        	panels.add(buildLabelComponentPanel("Segmented", true));
+				panels.add(buildLabelComponentPanel("Manifest", URLDecoder.decode(obj.getManifest(), charset)));
+	        }
+	        else
+	        	panels.add(buildLabelComponentPanel("Segmented", false));
+		} 
+        catch (UnsupportedEncodingException e) 
+		{
+			logger.error("Error occurred while showing information", e);
+		}
 
         //TODO: more info
         // ...

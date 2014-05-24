@@ -940,7 +940,10 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			{
 				if (largeObjectManager != null && largeObjectManager.isSegmented(obj))
 				{
-					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segmentationSize) ;
+					long segSize = largeObjectManager.getActualSegmentSize (obj) ;
+					if (segSize <= 0)
+						segSize = segmentationSize ;
+					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segSize) ;
 					if (etag.startsWith("\"")) ;
 						etag = etag.replace("\"", "") ;
 					if (etag != null && etag.equals(md5))

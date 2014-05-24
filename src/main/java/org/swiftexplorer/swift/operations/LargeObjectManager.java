@@ -44,6 +44,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.javaswift.joss.client.core.AbstractContainer;
 import org.javaswift.joss.client.core.AbstractStoredObject;
@@ -53,6 +55,7 @@ import org.javaswift.joss.instructions.SegmentationPlan;
 import org.javaswift.joss.instructions.UploadInstructions;
 import org.javaswift.joss.model.Account;
 import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.PaginationMap;
 import org.javaswift.joss.model.StoredObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,12 +72,13 @@ class LargeObjectManager {
     private final Account account ;
     private final boolean checkExistingSegments = true ;
  
+    private static final int MAX_PAGE_SIZE = 9999;
+    
 	LargeObjectManager (Account account) { 
 		super () ; 
 		this.account = account ;
 	} ;
 	
-    
 	
     // Code taken from Joss, package org.javaswift.joss.client.core, class AbstractStoredObject.java 
     // and adapted here.
@@ -111,11 +115,18 @@ class LargeObjectManager {
     		return false ;
     	if (SwiftUtils.directoryContentType.equals(obj.getContentType()))
     		return false ;
+    	String manifest = obj.getManifest() ;
+    	if (manifest != null && !manifest.isEmpty())
+    		return true ;
+    	
+    	// TODO:
+    	//return false ;
+    	
     	Container segCont = getSegmentsContainer (obj, false) ;
     	if (segCont == null || !segCont.exists())
     		return false ;
     	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;    	
-    	return segObj != null && segObj.exists() ;
+    	return segObj != null && segObj.exists() ;	
     }
     
     
@@ -142,25 +153,69 @@ class LargeObjectManager {
     
     public List<StoredObject> getSegmentsList (StoredObject obj)
     {
-    	return getSegmentsList (obj, 0) ;
+    	return getSegmentsList (obj, 0, -1) ;
     }
     
 	
-    public List<StoredObject> getSegmentsList (StoredObject obj, long offset)
+    private List<StoredObject> getSegmentsList (StoredObject obj, long offset, long nobj)
     {
     	List<StoredObject> ret = new ArrayList<StoredObject> () ;
     	Container segCont = getSegmentsContainer (obj, false) ;
     	if (segCont == null || !segCont.exists())
     		return ret ;
-    	int segCount = 1 ;
+    	
+    	// First, we try to get the segments from the manifest
+    	ret.addAll(getSegmentsListFromManifest (segCont, obj, offset, nobj)) ;
+    	if (!ret.isEmpty())
+    		return ret ;
+    	
+    	// If no segments were found using the manifest (typically, because the object does not exist,
+    	// e.g., if only some segments were uploaded)
+    	long segCount = 1 ;
     	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(segCount)) ;
     	while (segObj != null && segObj.exists())
     	{
     		if (segCount >= (offset + 1))
     			ret.add (segObj) ;
+    		
+    		if (nobj > 0 && ret.size() >= nobj)
+    			return ret ;
+    		
     		++segCount ;
     		segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(segCount)) ;
     	}
+    	return ret ;
+    }
+    
+    
+    private List<StoredObject> getSegmentsListFromManifest (Container segCont, StoredObject obj, long offset, long nobj)
+    {
+    	List<StoredObject> ret = new ArrayList<StoredObject> () ;
+    	if (!obj.exists())
+    		return ret ;
+		String manifest = obj.getManifest() ;
+		if (manifest == null || manifest.isEmpty())
+			return ret ;
+		// http://docs.openstack.org/api/openstack-object-storage/1.0/content/large-object-creation.html
+		// {container}/{prefix} 
+		int index = manifest.indexOf(SwiftUtils.separator) ;
+		if (index > 0)
+		{
+			long segCount = 1 ;
+			String prefix = manifest.substring(index) ;
+	        PaginationMap map = segCont.getPaginationMap(MAX_PAGE_SIZE);
+	        for (int page = 0; page < map.getNumberOfPages(); page++) 
+	        {
+	        	for (StoredObject so : segCont.list(prefix, map.getMarker(page), map.getPageSize()))
+	        	{
+	        		if (segCount >= (offset + 1))
+	        			ret.add (so) ;
+	        		if (nobj > 0 && ret.size() >= nobj)
+	        			return ret ;
+	        		++segCount ;
+	        	}
+	        }
+		}
     	return ret ;
     }
     
@@ -179,6 +234,14 @@ class LargeObjectManager {
     		return notFound ;
     	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;
     	if (segObj == null || !segObj.exists())
+    	{
+    		// the object may have been segmented using another convention,
+    		// we check using the manifest
+	    	List<StoredObject> sgl = getSegmentsList(obj, 0, 1) ;
+	    	if (!sgl.isEmpty())
+	    		segObj = sgl.get(0) ;
+    	}
+    	if (segObj == null || !segObj.exists())
     		return notFound ;
     	return segObj.getContentLength() ;
     }
@@ -186,11 +249,32 @@ class LargeObjectManager {
     
     private Container getSegmentsContainer (StoredObject obj, boolean createIfNeeded)
     {
-    	StringBuilder segmentsContainerName = new StringBuilder () ;
-    	segmentsContainerName.append(((AbstractStoredObject)obj).getContainer().getName()) ;
-    	segmentsContainerName.append(SwiftUtils.segmentsContainerPostfix) ;
+    	String containerName = null ;
+    	if (obj.exists())
+    	{
+    		String manifest = obj.getManifest() ;
+    		if (manifest != null && !manifest.isEmpty())
+    		{
+    			// http://docs.openstack.org/api/openstack-object-storage/1.0/content/large-object-creation.html
+    			// {container}/{prefix} 
+    			int index = manifest.indexOf(SwiftUtils.separator) ;
+    			if (index > 0) {
+    				containerName = manifest.substring(0, index) ;
+    			}
+    		}
+    	}
     	
-    	Container segmentsContainer = account.getContainer(segmentsContainerName.toString()) ;
+    	if (containerName == null)
+    	{
+	    	StringBuilder segmentsContainerName = new StringBuilder () ;
+	    	segmentsContainerName.append(((AbstractStoredObject)obj).getContainer().getName()) ;
+	    	segmentsContainerName.append(SwiftUtils.segmentsContainerPostfix) ;
+	    	containerName = segmentsContainerName.toString() ;
+    	}
+    	else
+    		logger.info("Segment objects container obtained from the manifest: " + containerName) ;
+    	
+    	Container segmentsContainer = account.getContainer(containerName) ;
     	if (createIfNeeded && !segmentsContainer.exists())
     	{
     		segmentsContainer.create() ;
@@ -212,6 +296,7 @@ class LargeObjectManager {
     	pathBuilder.append(SwiftUtils.separator) ;
     	pathBuilder.append(obj.getName()) ;
         String path = pathBuilder.toString()  ;
+        Set<StoredObject> segmentsSet = new TreeSet<> () ;
         try 
         {
             logger.info("Setting up a segmentation plan for " + path);
@@ -229,6 +314,7 @@ class LargeObjectManager {
             	logger.info("Uploading segment " + planSeg);
             	progInfo.setCurrentMessage(String.format("%s (segment %d / %d)", currMsg, planSeg, numSegments));
                 StoredObject segment = getObjectSegment(abstractContainer, obj, planSeg);  
+                segmentsSet.add(segment) ;
                 // check if this segment can be ignored
                 boolean ignore = false ;
                 if (md5PlanMap != null && !md5PlanMap.isEmpty())
@@ -249,7 +335,7 @@ class LargeObjectManager {
                 segmentStream = FileUtils.getInputStreamWithProgressFilter(progInfo, (planSeg + 1 != numSegments)?(uploadInstructions.getSegmentationSize()):(size % uploadInstructions.getSegmentationSize()), plan.getNextSegment());
             }
             // we must remove extra segments that might remain from a previous large object with the same name
-            cleanUpExtraSegments (obj, numSegments) ;
+            cleanUpExtraSegments (obj, segmentsSet) ;
         } 
         catch (IOException err) 
         {
@@ -266,9 +352,23 @@ class LargeObjectManager {
     }
     
     
-    private void cleanUpExtraSegments (AbstractStoredObject obj, long numSegments)
+    private void cleanUpExtraSegments (AbstractStoredObject obj, Set<StoredObject> toKeep)
     {
-    	List<StoredObject> list =  getSegmentsList (obj, numSegments) ;
+    	List<StoredObject> list =  getSegmentsList (obj) ;
+    	for (StoredObject so : list)
+    	{
+    		if (toKeep != null && toKeep.contains(so))
+    			continue ;
+    		logger.info("Delete unused segment ({})", so.getBareName()) ;
+    		so.delete(); 
+    	}
+    }
+    
+    
+    @SuppressWarnings("unused")
+	private void cleanUpExtraSegments (AbstractStoredObject obj, long numSegments)
+    {
+    	List<StoredObject> list =  getSegmentsList (obj, numSegments, -1) ;
     	for (StoredObject so : list)
     	{
     		logger.info("Delete unused segment ({})", so.getBareName()) ;
@@ -302,7 +402,7 @@ class LargeObjectManager {
 	
 	private Map<Long, String> getMd5PlanMap (UploadInstructions uploadInstructions, AbstractStoredObject obj, File file, ProgressInformation progInfo) throws IOException
     {
-		if (obj == null /*|| !isSegmented (obj)*/)
+		if (obj == null)
 			return java.util.Collections.emptyMap() ;		
 		List<StoredObject> listSeg = getSegmentsList (obj) ;
 		final int numberOfExistingSegments = listSeg.size() ;
@@ -343,10 +443,11 @@ class LargeObjectManager {
     {
     	if (part <= 0)
     		throw new AssertionError ("Segments are 1-indexed.") ;
-    	StringBuilder segmentName = new StringBuilder () ;
-    	segmentName.append (obj.getName()) ;
-    	segmentName.append (SwiftUtils.separator) ;
-    	segmentName.append (String.format("%08d", part.intValue())) ;
-        return segmentsContainer.getObject(segmentName.toString());
+    	
+    	StringBuilder segmentNameBuilder = new StringBuilder () ;
+    	segmentNameBuilder.append (obj.getName()) ;
+    	segmentNameBuilder.append (SwiftUtils.separator) ;
+    	segmentNameBuilder.append (String.format("%08d", part.intValue())) ;
+        return segmentsContainer.getObject(segmentNameBuilder.toString());
     }
 }
