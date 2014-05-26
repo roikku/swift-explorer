@@ -21,6 +21,8 @@ import org.scribe.model.Response;
 import org.scribe.model.Token;
 import org.scribe.model.Verb;
 import org.scribe.model.Verifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 
@@ -31,6 +33,8 @@ import org.swiftexplorer.config.auth.HasAuthenticationSettings;
 import org.swiftexplorer.swift.SwiftAccess;
 
 public final class HubicSwift {
+	
+	final private static Logger logger = LoggerFactory.getLogger(HubicSwift.class);
 	
 	private HubicSwift () { super () ; } ;
 	
@@ -56,21 +60,11 @@ public final class HubicSwift {
 			return null ;
 		
 		Token accessToken = service.getAccessToken(null, verif);
-		String urlCredential = HubicApi.CREDENTIALS_URL;
-		
-	    OAuthRequest request = new OAuthRequest(Verb.GET, urlCredential);
-	    request.setConnectionKeepAlive(false);
-	    service.signRequest(accessToken, request);
-	    Response responseReq = request.send();
-	    
-	    SwiftAccess ret = gson.fromJson(responseReq.getBody(), SwiftAccess.class) ;
-	    ret.setAccessToken(accessToken);
-	    
-	    return ret ;
+		return getSwiftAccess (service, accessToken) ;
 	}
 
 	
-	public static Token refreshAccessToken(Token expiredToken) 
+	public static SwiftAccess refreshAccessToken(Token expiredToken) 
 	{
 		final HasAuthenticationSettings authSettings = Configuration.INSTANCE.getAuthenticationSettings();
 		String apiKey = authSettings.getClientId();
@@ -82,6 +76,25 @@ public final class HubicSwift {
 				.scope(scope)
 				.callback(HubicApi.CALLBACK_URL).build();
 
-		return service.refreshAccessToken(expiredToken);
+		Token accessToken = service.refreshAccessToken(expiredToken);	    
+		return getSwiftAccess (service, accessToken) ;
+	}
+	
+	
+	private static SwiftAccess getSwiftAccess (HubicOAuth20ServiceImpl service, Token accessToken)
+	{
+		String urlCredential = HubicApi.CREDENTIALS_URL;
+		
+	    OAuthRequest request = new OAuthRequest(Verb.GET, urlCredential);
+	    request.setConnectionKeepAlive(false);
+	    service.signRequest(accessToken, request);
+	    Response responseReq = request.send();
+	    
+	    SwiftAccess ret = gson.fromJson(responseReq.getBody(), SwiftAccess.class) ;
+	    ret.setAccessToken(accessToken);
+	    
+	    logger.info("Swift access token expiry date: " + ret.getExpires());
+	    
+		return ret ;
 	}
 }

@@ -25,7 +25,6 @@ import org.javaswift.joss.command.shared.identity.access.AccessBasic;
 import org.javaswift.joss.headers.identity.XAuthKey;
 import org.javaswift.joss.headers.identity.XAuthUser;
 import org.javaswift.joss.model.Access;
-import org.scribe.model.Token;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,11 +58,11 @@ public class ExtAuthenticationCommandImpl extends AbstractSimpleAuthenticationCo
     	{
 	    	case HUBIC:
 	    	{
-	        	Token newToken = HubicSwift.refreshAccessToken(this.swiftAccess.getAccessToken()) ;
+	    		SwiftAccess newSwiftAccess = HubicSwift.refreshAccessToken(this.swiftAccess.getAccessToken()) ;
 	
 	        	AccessBasic access = new AccessBasic();
-	    		access.setToken(newToken.getToken());
-	    		access.setUrl(swiftAccess.getEndpoint());
+	    		access.setToken(newSwiftAccess.getToken());
+	    		access.setUrl(newSwiftAccess.getEndpoint());
 	        	return access ;
 	    	}
 			case GENERIC:

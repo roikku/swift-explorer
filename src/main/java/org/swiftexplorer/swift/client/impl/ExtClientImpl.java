@@ -61,9 +61,9 @@ public class ExtClientImpl extends ClientImpl
 		super(accountConfig);
 	
 		this.config = config ;
-		initHttpClient(accountConfig.getSocketTimeout(), this.config);
-		
 		this.swiftAccess = swiftAccess ;
+
+		initHttpClient(accountConfig.getSocketTimeout(), this.config);
 	}
 	
     
@@ -86,6 +86,12 @@ public class ExtClientImpl extends ClientImpl
 	}
 	
 	
+	private org.apache.http.client.HttpClient newHttpClient (PoolingClientConnectionManager connectionManager)
+	{
+		return new DefaultHttpClient(connectionManager);
+	}
+	
+	
     private void initHttpClient(int socketTimeout, HasConfiguration config) {
     	
         PoolingClientConnectionManager connectionManager = initConnectionManager();
@@ -94,7 +100,9 @@ public class ExtClientImpl extends ClientImpl
             disableSslValidation(connectionManager);
         }
         
-        this.httpClient = new DefaultHttpClient(connectionManager);
+        //this.httpClient = new DefaultHttpClient(connectionManager);
+        this.httpClient = newHttpClient (connectionManager) ;
+        
         if (socketTimeout != -1) {
         	logger.info("JOSS / Set socket timeout on HttpClient: " + socketTimeout);
             HttpParams params = this.httpClient.getParams();

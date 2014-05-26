@@ -23,7 +23,7 @@ public class SwiftAccess {
 	private final String expires ;
 	
 	private Token accessToken ;
-	
+
 	public SwiftAccess(String token, String endpoint, String expires, Token accessToken) {
 		super();
 		this.token = token;

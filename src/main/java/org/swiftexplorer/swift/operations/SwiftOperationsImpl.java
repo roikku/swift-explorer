@@ -57,6 +57,7 @@ import java.util.ListIterator;
 import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.exception.CommandException;
@@ -501,6 +502,27 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		}
 	}
     
+	
+	private boolean isRetryable (CommandException e)
+	{
+		return ((e.getHttpStatusCode() == 0 && e.getError() == null)
+				|| e.getError() == CommandExceptionError.UNKNOWN
+				|| e.getError() == CommandExceptionError.UNAUTHORIZED) ;
+	}
+	
+	
+	private void dealWithCommandException (CommandException e, AtomicInteger counter)
+	{		
+		if (isRetryable (e))
+		{
+			if (counter.getAndIncrement() >= numberOfCommandErrorRetry)
+				throw e ;
+			logger.info(String.format("Command Error: %s", e.toString()));
+		}
+		else
+			throw e ;
+	}
+	
     
     private void downloadObject (StoredObject storedObject, File target, ProgressInformation progInfo, SwiftCallback callback) throws IOException
     {		
@@ -522,11 +544,23 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	}
     	
     	try
-    	{    		    		
-    		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
-    		InputStream in = FileUtils.getInputStreamWithProgressFilter(progInfo, storedObject.getContentLength(), storedObject.downloadObjectAsInputStream()) ;	    		
-
-    		FileUtils.saveInputStreamInFile (in, target, true) ;
+    	{    
+    		AtomicInteger tryCounter = new AtomicInteger () ;
+    		while (true)
+    		{
+	    		try
+	    		{
+		    		progInfo.setCurrentMessage(String.format("Downloading %s", storedObject.getName()));
+		    		InputStream in = FileUtils.getInputStreamWithProgressFilter(progInfo, storedObject.getContentLength(), storedObject.downloadObjectAsInputStream()) ;	    		
+		
+		    		FileUtils.saveInputStreamInFile (in, target, true) ;
+		    		break ;
+	    		}
+	    		catch (CommandException e) 
+	    		{
+	    			dealWithCommandException (e, tryCounter) ;
+	    		}
+    		}
     	}
 	    catch (OutOfMemoryError ome)
 	    {
@@ -543,7 +577,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	InputStream in = null ;
     	try
     	{
-    		int tryCount = 0 ;
+    		AtomicInteger tryCounter = new AtomicInteger () ;
     		while (true)
     		{
 	    		try
@@ -566,16 +600,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	    		}
 	    		catch (CommandException e) 
 	    		{
-	    			if ((e.getHttpStatusCode() == 0 && e.getError() == null)
-	    					|| e.getError() == CommandExceptionError.UNKNOWN)
-	    			{
-		    			++tryCount ;
-		    			if (tryCount >= numberOfCommandErrorRetry)
-		    				throw e ;
-		    			logger.info(String.format("Command Error: %s", e.toString()));
-	    			}
-	    			else
-	    				throw e ;
+	    			dealWithCommandException (e, tryCounter) ;
 	    		}
     		}
     	}
@@ -940,7 +965,10 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			{
 				if (largeObjectManager != null && largeObjectManager.isSegmented(obj))
 				{
-					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segmentationSize) ;
+					long segSize = largeObjectManager.getActualSegmentSize (obj) ;
+					if (segSize <= 0)
+						segSize = segmentationSize ;
+					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segSize) ;
 					if (etag.startsWith("\"")) ;
 						etag = etag.replace("\"", "") ;
 					if (etag != null && etag.equals(md5))

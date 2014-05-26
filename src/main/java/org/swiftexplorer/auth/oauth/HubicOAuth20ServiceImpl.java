@@ -76,7 +76,8 @@ public class HubicOAuth20ServiceImpl implements OAuthService {
 		
 		try
 		{
-			request.addBodyParameter("refresh_token", URLEncoder.encode(at.getRefreshToken(), charset));
+			request.addBodyParameter("refresh_token", at.getRefreshToken());
+			//request.addBodyParameter("refresh_token", URLEncoder.encode(at.getRefreshToken(), charset));
 			request.addBodyParameter("grant_type", "refresh_token");
 			request.addBodyParameter(OAuthConstants.CLIENT_ID, URLEncoder.encode(config.getApiKey(), charset));
 			request.addBodyParameter(OAuthConstants.CLIENT_SECRET, URLEncoder.encode(config.getApiSecret(), charset));

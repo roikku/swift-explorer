@@ -162,6 +162,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import org.javaswift.joss.exception.CommandException;
+import org.javaswift.joss.exception.CommandExceptionError;
 import org.javaswift.joss.model.Container;
 import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
@@ -2456,7 +2457,16 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     protected void showError(CommandException ex) {
 
-    	errorLogPanel.add(ex.getMessage(), LogPanel.LogType.ERROR); 
+    	String msg = ex.getMessage() ;
+    	if (msg == null)
+    	{
+    		if (ex.getError() == CommandExceptionError.UNAUTHORIZED)
+    			msg = "Authorization Anomaly" ;
+    		else
+    			msg = "Unknown Error" ;
+    		
+    	}
+    	errorLogPanel.add(msg, LogPanel.LogType.ERROR); 
     	
     	if (errorDialog != null && errorDialog.isVisible())
     		errorDialog.setVisible(false);

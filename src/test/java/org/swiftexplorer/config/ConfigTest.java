@@ -18,7 +18,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
-
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
@@ -39,7 +38,7 @@ import static org.junit.Assert.assertTrue;
 
 
 public class ConfigTest {
-
+	
 	final private static Logger logger = LoggerFactory.getLogger(ConfigTest.class);
 	private File configSettingFile = null ;
 	private static boolean hasConfigBeenLoaded = false ;

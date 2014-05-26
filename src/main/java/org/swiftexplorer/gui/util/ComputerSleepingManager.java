@@ -101,7 +101,7 @@ public enum ComputerSleepingManager {
 				    		int y = currPos.y ;
 				    		robot.mouseMove(x + 1, y + 1);
 				    		robot.mouseMove(x - 1, y - 1);
-				    		robot.mouseMove(x, y);
+				    		//robot.mouseMove(x, y);
 				    		
 				    		logger.info ("Shaked mouse pointer to prevent the computer from sleeping");
 			    		}
