@@ -14,12 +14,46 @@
 
 package org.swiftexplorer.gui.util;
 
+import java.awt.Component;
 import java.awt.Frame;
+
+import javax.accessibility.AccessibleContext;
+import javax.swing.AbstractButton;
 
 public class SwingUtils {
 	
 	private SwingUtils () { super () ;} 
 	
+	
+    public static <T extends Component> T setAccessibleContext (T comp)
+    {
+    	return setAccessibleContext (comp, null) ;
+    }
+    
+    
+    public static <T extends Component> T setAccessibleContext (T comp, String name)
+    {
+    	if (comp == null)
+    		return comp;
+    	AccessibleContext ac = comp.getAccessibleContext() ;
+    	if (ac == null)
+    		return comp ;
+    	String text = null ;
+    	if (name != null && !name.isEmpty())
+    		text = name ;
+    	else if (comp instanceof AbstractButton) 
+    		text = ((AbstractButton)comp).getText() ;
+    	else
+    		text = comp.getName();
+    	if (text != null)
+    	{
+    		ac.setAccessibleName(text);
+    		ac.setAccessibleDescription(text) ;
+    	}
+    	return comp ;
+    }
+    
+    
 	public static Frame tryFindSuitableFrameOwner ()
 	{
 		Frame owner = null;

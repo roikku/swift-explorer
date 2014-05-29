@@ -70,6 +70,7 @@ import org.swiftexplorer.gui.util.LabelComponentPanel;
 import org.swiftexplorer.gui.util.PopupTrigger;
 import org.swiftexplorer.gui.util.ReflectionAction;
 import org.swiftexplorer.gui.util.SwiftOperationStopRequesterImpl;
+import org.swiftexplorer.gui.util.SwingUtils;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.ContainerSpecification;
@@ -1400,18 +1401,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     private <T extends Component> T setAccessibleContext (T comp, String name)
     {
-    	if (comp == null)
-    		return comp;
-    	AccessibleContext ac = comp.getAccessibleContext() ;
-    	if (ac == null)
-    		return comp ;
-    	if (name != null && !name.isEmpty())
-    		ac.setAccessibleName(name);
-    	else if (comp instanceof AbstractButton)
-    		ac.setAccessibleName(((AbstractButton)comp).getText());
-    	else
-    		ac.setAccessibleName(comp.getName());
-    	return comp ;
+    	return SwingUtils.setAccessibleContext(comp, name) ;
     }
     
     
