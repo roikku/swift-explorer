@@ -18,7 +18,6 @@ import java.awt.AWTException;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.Robot;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,19 +26,21 @@ public enum ComputerSleepingManager {
 
 	private final static Logger logger = LoggerFactory.getLogger(ComputerSleepingManager.class);
 	
-	private final int interval = 15 * 60 * 1000 ;
+	private final int interval = 15 * 60 * 1000 ; // 15 minutes
 	private SeeminglyStaticMouseShaker mouseShaker = null ;
 	private Thread thread = null ;
+	private int counter = 0 ;
 	
 	public synchronized void keepAwake (boolean ka)
 	{
+		counter = Math.max(0, counter + ((ka) ? (1) : (-1))) ;
 		if (ka && (mouseShaker == null))
 		{
 			mouseShaker = new SeeminglyStaticMouseShaker (interval) ;
 			thread = new Thread (mouseShaker) ;
 			thread.start();
 		}
-		else if (!ka && (mouseShaker != null))
+		else if (!ka && (mouseShaker != null) && counter == 0)
 		{
 			try 
 			{

@@ -239,6 +239,9 @@ public class FileTypeIconFactory {
 	{
 		Icon ret = null ;
 		
+    	if (contentType != null && SwiftUtils.directoryContentType.equalsIgnoreCase(contentType))
+    		return getIconFromIconFileName("folder.png");
+		
 		String ext = FilenameUtils.getExtension(filename);
 		if (ext != null && !ext.isEmpty())
 			ret = getIconFromFileExt (ext) ;
@@ -247,9 +250,9 @@ public class FileTypeIconFactory {
 		
         if (contentType != null && !contentType.isEmpty())
         {
-        	if (SwiftUtils.directoryContentType.equalsIgnoreCase(contentType))
+        	/*if (SwiftUtils.directoryContentType.equalsIgnoreCase(contentType))
         		ret = getIconFromIconFileName("folder.png");
-        	else if (mineToExtSetMap.containsKey(contentType))
+        	else*/ if (mineToExtSetMap.containsKey(contentType))
         	{
         		Set<String> extsSet = mineToExtSetMap.get(contentType);
         		for (String ex : extsSet)
