@@ -253,6 +253,16 @@
 	</dependencies>
 
 	<repositories>
+
+		<repository>
+			<id>joss-mvn-repo</id>
+			<url>https://raw.github.com/roikku/joss/mvn-repo/</url>
+			<snapshots>
+				<enabled>true</enabled>
+				<updatePolicy>always</updatePolicy>
+			</snapshots>
+		</repository>
+		
 		<repository>
 			<id>scribe-java-mvn-repo</id>
 			<url>https://raw.github.com/fernandezpablo85/scribe-java/mvn-repo/</url>
@@ -261,6 +271,7 @@
 				<updatePolicy>always</updatePolicy>
 			</snapshots>
 		</repository>
+		
 	</repositories>
 	
 	<!-- We add this profile because BuildHive is still not supporting the Jdk1.8.0 -->
