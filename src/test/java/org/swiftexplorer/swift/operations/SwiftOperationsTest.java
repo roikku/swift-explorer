@@ -629,7 +629,7 @@ public class SwiftOperationsTest {
         	
         	// upload it
         	ops.uploadFiles(container, null, new File[] {file}, true, stopRequester, callback);
-  
+        	
         	// verify that the segments container has been created 
         	Container containerSegments = acc.getContainer(container.getName() + SwiftUtils.segmentsContainerPostfix);
         	assertTrue (containerSegments.exists()) ;
@@ -640,7 +640,7 @@ public class SwiftOperationsTest {
         	// check the object
         	StoredObject object = container.getObject(fileName);
         	assertTrue (object.exists()) ;
-        	
+
         	// delete the object
         	ops.deleteStoredObjects(container, Arrays.asList(object), stopRequester, callback) ;
         	Mockito.verify(callback, Mockito.times(1)).onStoredObjectDeleted(container, object);
