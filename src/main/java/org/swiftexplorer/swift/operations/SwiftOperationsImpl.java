@@ -873,6 +873,18 @@ public class SwiftOperationsImpl implements SwiftOperations {
         			continue ;
         		if (dirOrobj.isObject())
         			listStoredObjects.add(dirOrobj.getAsObject()) ;
+        		else
+        		{
+        			String dirName = dirOrobj.getName() ;
+        			if (dirName.endsWith(SwiftUtils.separator)) 
+        				dirName = dirName.substring(0, dirName.length() - 1) ;
+        			StoredObject dir = container.getObject(dirName) ;
+        			if (!dir.exists())
+        			{
+        				createDirectory(dir);
+        				listStoredObjects.add(dir) ;
+        			}
+        		}
         	}
             callback.onAppendStoredObjects(container, page++, listStoredObjects);
             
@@ -965,10 +977,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			{
 				if (largeObjectManager != null && largeObjectManager.isSegmented(obj))
 				{
-					long segSize = largeObjectManager.getActualSegmentSize (obj) ;
-					if (segSize <= 0)
-						segSize = segmentationSize ;
-					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), segSize) ;
+					md5 = FileUtils.getSumOfSegmentsMd5(path.toFile(), getActualSegmentSize (obj)) ;
 					if (etag.startsWith("\"")) ;
 						etag = etag.replace("\"", "") ;
 					if (etag != null && etag.equals(md5))
@@ -983,6 +992,17 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			}
 		}
 		return false ;
+	}
+	
+	
+	private long getActualSegmentSize (StoredObject obj)
+	{
+		if (largeObjectManager == null)
+			return segmentationSize ;
+		long segSize = largeObjectManager.getActualSegmentSize (obj) ;
+		if (segSize <= 0)
+			segSize = segmentationSize ;
+		return segSize ;
 	}
 	
 
@@ -1049,7 +1069,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		List<Pair<? extends ComparisonItem, ? extends ComparisonItem> > ret = new ArrayList<> () ;
 		
 		RemoteItem ri = new RemoteItem (remote) ;
-		LocalItem li = new LocalItem (Paths.get(local.getPath()), Paths.get(local.getPath()).getParent(), segmentationSize) ;	
+		LocalItem li = new LocalItem (Paths.get(local.getPath()), Paths.get(local.getPath()).getParent(), getActualSegmentSize (remote)) ;	
 		
 		if (ri.equals(li))
 		{
@@ -1125,7 +1145,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 					consideredStoredObjectSet.add(obj) ;
 				
 	    		RemoteItem ri = new RemoteItem (obj) ;
-	    		LocalItem li = new LocalItem (path, parentLocalDir, segmentationSize) ;
+	    		LocalItem li = new LocalItem (path, parentLocalDir, getActualSegmentSize (obj)) ;
 	    		if (ri.equals(li) || (!ri.exists() && !li.exists ()))
 	    			continue ;
 	    		ret.add(Pair.newPair(li, ri)) ; 

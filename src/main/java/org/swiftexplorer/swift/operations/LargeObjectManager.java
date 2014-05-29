@@ -118,15 +118,13 @@ class LargeObjectManager {
     	String manifest = obj.getManifest() ;
     	if (manifest != null && !manifest.isEmpty())
     		return true ;
-    	
-    	// TODO:
-    	//return false ;
-    	
+    	return false ;
+    	/*
     	Container segCont = getSegmentsContainer (obj, false) ;
     	if (segCont == null || !segCont.exists())
     		return false ;
     	StoredObject segObj = getObjectSegment ((AbstractContainer)segCont, (AbstractStoredObject)obj, Long.valueOf(1)) ;    	
-    	return segObj != null && segObj.exists() ;	
+    	return segObj != null && segObj.exists() ;	*/
     }
     
     
@@ -313,7 +311,7 @@ class LargeObjectManager {
             	Long planSeg = plan.getSegmentNumber() ;
             	logger.info("Uploading segment " + planSeg);
             	progInfo.setCurrentMessage(String.format("%s (segment %d / %d)", currMsg, planSeg, numSegments));
-                StoredObject segment = getObjectSegment(abstractContainer, obj, planSeg);  
+                StoredObject segment = getObjectSegment(abstractContainer, obj, planSeg); 
                 segmentsSet.add(segment) ;
                 // check if this segment can be ignored
                 boolean ignore = false ;
