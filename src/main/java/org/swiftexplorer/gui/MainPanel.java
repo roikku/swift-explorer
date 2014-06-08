@@ -73,6 +73,8 @@ import org.swiftexplorer.gui.util.SwiftOperationStopRequesterImpl;
 import org.swiftexplorer.gui.util.SwingUtils;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
+import org.swiftexplorer.swift.client.impl.HttpClientFactoryImpl;
+import org.swiftexplorer.swift.client.impl.HubicAccessProvider;
 import org.swiftexplorer.swift.operations.ContainerSpecification;
 import org.swiftexplorer.swift.operations.SwiftOperations;
 import org.swiftexplorer.swift.operations.SwiftOperations.ComparisonItem;
@@ -164,8 +166,10 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import org.javaswift.joss.client.factory.AuthenticationMethod;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.exception.CommandExceptionError;
+import org.javaswift.joss.model.Access;
 import org.javaswift.joss.model.Container;
 import org.javaswift.joss.model.Directory;
 import org.javaswift.joss.model.StoredObject;
@@ -294,7 +298,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
    public MainPanel(SwiftAccess swiftAccess, HasConfiguration config, HasLocalizedStrings stringsBundle) {
        this(config, stringsBundle);
-       ops.login(AccountConfigFactory.getHubicAccountConfig(), swiftAccess, callback);
+       ops.login(AccountConfigFactory.getHubicAccountConfig(swiftAccess), config.getHttpProxySettings(), callback);
    }
 
    
@@ -540,7 +544,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 		treeExpansionState = StoredObjectsTreeModel.TreeUtils.getTreeExpansionState (tree) ;
 		
 		Directory d = new Directory (dirName, SwiftUtils.separator.charAt(0)) ;
-		ops.refreshDirectoriesOrStoredObjects(container, d, 0, clbk);	
+		ops.refreshDirectoriesOrStoredObjects(container, d, clbk);	
     }
     
     
@@ -1000,10 +1004,11 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 											getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
 								}
 							});
+
 					if (allowCustomeSegmentationSize)
-						ops.login(AccountConfigFactory.getHubicAccountConfig(), config.getSwiftSettings().getSegmentationSize(), sa, cb);
+						ops.login(AccountConfigFactory.getHubicAccountConfig(sa), config.getSwiftSettings().getSegmentationSize(), config.getHttpProxySettings(), cb);
 					else
-						ops.login(AccountConfigFactory.getHubicAccountConfig(), sa, cb);
+						ops.login(AccountConfigFactory.getHubicAccountConfig(sa), config.getHttpProxySettings(), cb);
 				}
 				enableDisable();
 				if (owner != null)
@@ -2159,7 +2164,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         storedObjects.clear();
         treeHasBeenExpandedNodeSet.clear();
         if (selected != null)
-        	ops.refreshDirectoriesOrStoredObjects(selected, null, 0, callback);
+        	ops.refreshDirectoriesOrStoredObjects(selected, null, callback);
     }
     
     

@@ -673,7 +673,7 @@ public class SwiftOperationsTest {
 	    	@SuppressWarnings({ "unchecked", "rawtypes" })
 			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
 	    
-	        ops.refreshDirectoriesOrStoredObjects(container, null, 0, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, null, callback);
 	        
 	        Mockito.verify(callback, Mockito.atLeastOnce()).onNewStoredObjects();
 	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
@@ -706,7 +706,7 @@ public class SwiftOperationsTest {
 
 	        // verify that the uploaded files are correctly listed
 	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
-	        ops.refreshDirectoriesOrStoredObjects(container, parent, 0, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
 
 	        // onAppendStoredObjects is called one time when calling uploadDirectory, but should not be called again when calling refreshDirectoriesOrStoredObjects
 	        Mockito.verify(callback, Mockito.times(1)).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), Mockito.anyCollectionOf(StoredObject.class));
@@ -743,7 +743,7 @@ public class SwiftOperationsTest {
 			ArgumentCaptor<Collection<StoredObject> > argument = ArgumentCaptor.forClass((Class) Collection.class);
 	    
 	    	Directory parent = new Directory (folder.getName(), SwiftUtils.separator.charAt(0)) ;
-	        ops.refreshDirectoriesOrStoredObjects(container, parent, 0, callback);
+	        ops.refreshDirectoriesOrStoredObjects(container, parent, callback);
 
 	        Mockito.verify(callback, Mockito.atLeastOnce()).onAppendStoredObjects(Mockito.any(Container.class), Mockito.anyInt(), argument.capture());
 	        

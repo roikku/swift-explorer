@@ -139,7 +139,7 @@ public class ExtClientImpl extends ClientImpl
 					HttpClient httpClient,
 					AuthenticationMethod authenticationMethod, String url,
 					String tenantName, String tenantId, String username,
-					String password) {
+					String password, AuthenticationMethod.AccessProvider accessProvider) {
 				
 				return new ExtAuthenticationCommandImpl(httpClient, url, username, password, swiftAccess, SwiftProvider.HUBIC);
 			}} ;
@@ -157,7 +157,7 @@ public class ExtClientImpl extends ClientImpl
 						accountConfig.getTenantName(),
 						accountConfig.getTenantId(),
 						accountConfig.getUsername(),
-						accountConfig.getPassword());
+						accountConfig.getPassword(), null);
 
 		AccessBasic access = new AccessBasic();
 

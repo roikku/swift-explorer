@@ -31,6 +31,7 @@
 
 package org.swiftexplorer.swift.operations;
 
+import org.swiftexplorer.config.proxy.HasProxySettings;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.util.Pair;
 
@@ -191,11 +192,19 @@ public interface SwiftOperations {
     /**
      * performs a login.
      * @param accConf.
-     * @param swiftAccess.
      * @param callback the callback.
      */
-    void login(AccountConfig accConf, SwiftAccess swiftAccess, SwiftCallback callback);
+    void login(AccountConfig accConf, SwiftCallback callback);
     
+    
+    /**
+     * performs a login.
+     * @param accConf.
+     * @param proxySettings.
+     * @param callback the callback.
+     */
+	void login(AccountConfig accConf, HasProxySettings proxySettings, SwiftCallback callback) ;
+
     
     /**
      * performs a login.
@@ -214,10 +223,19 @@ public interface SwiftOperations {
      * performs a login.
      * @param accConf.
      * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120).
-     * @param swiftAccess.
      * @param callback the callback.
      */
-    void login(AccountConfig accConf, long segmentationSize, SwiftAccess swiftAccess, SwiftCallback callback);
+    void login(AccountConfig accConf, long segmentationSize, SwiftCallback callback);
+    
+    
+    /**
+     * performs a login.
+     * @param accConf.
+     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120).
+     * `param proxySettings.
+     * @param callback the callback.
+     */
+    void login(AccountConfig accConf, long segmentationSize, HasProxySettings proxySettings, SwiftCallback callback);
     
 
     /**
@@ -397,10 +415,9 @@ public interface SwiftOperations {
      * refreshes the directories and stored object list in the given container under the given parent.
      * @param container the container.
      * @param parent the parent directory.
-     * @param depth the depth in terms of sub-directories to refresh
      * @param callback the callback to call when done.
      */
-    void refreshDirectoriesOrStoredObjects(Container container, Directory parent, long depth, SwiftCallback callback);
+    void refreshDirectoriesOrStoredObjects(Container container, Directory parent, SwiftCallback callback);
     
     
     /**

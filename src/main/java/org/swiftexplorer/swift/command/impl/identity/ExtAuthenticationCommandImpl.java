@@ -14,7 +14,6 @@
 
 package org.swiftexplorer.swift.command.impl.identity;
 
-import org.swiftexplorer.config.Configuration;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.swift.client.impl.ExtClientImpl.SwiftProvider;
 import org.swiftexplorer.swift.util.HubicSwift;
@@ -30,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 public class ExtAuthenticationCommandImpl extends AbstractSimpleAuthenticationCommandImpl {
 	
-	final private Logger logger = LoggerFactory.getLogger(Configuration.class);
+	final private Logger logger = LoggerFactory.getLogger(ExtAuthenticationCommandImpl.class);
 	
 	private final SwiftAccess swiftAccess ;
 	private final SwiftProvider swiftProvider ;

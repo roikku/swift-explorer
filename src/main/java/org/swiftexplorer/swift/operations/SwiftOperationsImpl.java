@@ -32,8 +32,8 @@
 package org.swiftexplorer.swift.operations;
 
 
-import org.swiftexplorer.swift.SwiftAccess;
-import org.swiftexplorer.swift.client.factory.AccountFactory;
+import org.swiftexplorer.config.proxy.HasProxySettings;
+import org.swiftexplorer.swift.client.impl.HttpClientFactoryImpl;
 import org.swiftexplorer.swift.operations.DifferencesFinder.LocalItem;
 import org.swiftexplorer.swift.operations.DifferencesFinder.RemoteItem;
 import org.swiftexplorer.swift.util.SwiftUtils;
@@ -43,6 +43,7 @@ import org.swiftexplorer.util.Pair;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -60,6 +61,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.javaswift.joss.client.factory.AccountConfig;
+import org.javaswift.joss.client.factory.AccountFactory;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.exception.CommandExceptionError;
 import org.javaswift.joss.instructions.UploadInstructions;
@@ -111,9 +113,23 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * {@inheritDoc}.
      */
 	@Override
-	public synchronized void login(AccountConfig accConf, SwiftAccess swiftAccess, SwiftCallback callback) {
+	public synchronized void login(AccountConfig accConf, SwiftCallback callback) {
 
-		account = new AccountFactory(accConf).setSwiftAccess(swiftAccess).setAuthUrl("").createAccount();
+		account = new AccountFactory(accConf).setAuthUrl("").createAccount();
+		largeObjectManager = new LargeObjectManager (account) ;
+		
+        callback.onLoginSuccess();
+        callback.onNumberOfCalls(account.getNumberOfCalls());
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public synchronized void login(AccountConfig accConf, HasProxySettings proxySettings, SwiftCallback callback) {
+
+		account = new AccountFactory(accConf).setAuthUrl("").setHttpClient(new HttpClientFactoryImpl ().getHttpClient(accConf, proxySettings)).createAccount();
 		largeObjectManager = new LargeObjectManager (account) ;
 		
         callback.onLoginSuccess();
@@ -139,9 +155,22 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * {@inheritDoc}.
      */
 	@Override
-	public synchronized void login(AccountConfig accConf, long segmentationSize, SwiftAccess swiftAccess, SwiftCallback callback) {
+	public synchronized void login(AccountConfig accConf, long segmentationSize, SwiftCallback callback) {
 
-    	this.login(accConf, swiftAccess, callback);
+    	this.login(accConf, callback);
+    	
+    	this.segmentationSize = segmentationSize ;
+    	useCustomSegmentation = true ;
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public synchronized void login(AccountConfig accConf, long segmentationSize, HasProxySettings proxySettings, SwiftCallback callback) {
+
+    	this.login(accConf, proxySettings, callback);
     	
     	this.segmentationSize = segmentationSize ;
     	useCustomSegmentation = true ;
@@ -774,15 +803,15 @@ public class SwiftOperationsImpl implements SwiftOperations {
      * {@inheritDoc}.
      */
 	@Override
-	public void refreshDirectoriesOrStoredObjects(Container container, Directory parent, long depth, SwiftCallback callback) {
+	public void refreshDirectoriesOrStoredObjects(Container container, Directory parent, /*long depth,*/ SwiftCallback callback) {
 		
 		CheckAccount () ;
 		
 		try
 		{
-			if (depth <= 0)
+			//if (depth <= 0)
 				loadContainerDirectory (container, parent, callback) ;
-			else 
+			/*else 
 			{
 				if (parent == null)
 					callback.onNewStoredObjects();
@@ -793,7 +822,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 					callback.onAppendStoredObjects(container, page, list.subList(page * MAX_PAGE_SIZE, Math.min(list.size(), (page + 1) * MAX_PAGE_SIZE))) ;
 					++page ;
 				}
-			}
+			}*/
 			callback.onNumberOfCalls(account.getNumberOfCalls());
     	}
 	    catch (OutOfMemoryError ome)
@@ -803,6 +832,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	}
 	
 	
+	/*
     private List<StoredObject> getContainedStoredObject(Container container, Directory parent, long depth) 
     {
     	if (container == null)
@@ -843,7 +873,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
             directoriesOrObjects.addAll(container.listDirectory(prefix, delimiter, marker, MAX_PAGE_SIZE)) ;
         }
         return ret ;
-    }
+    }*/
 	
 	
     private void loadContainerDirectory(Container container, Directory parent, SwiftCallback callback) 
@@ -1104,7 +1134,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		
 		// here we compare two folders	
 		Path parentLocalDir = Paths.get(local.getPath()) ;
-		Queue<Path> filesQueue = FileUtils.getAllFilesPath(parentLocalDir, true) ;
+		Queue<Path> filesQueue = getAllFilesPath(parentLocalDir, true) ;
 		
 		String parentDir = SwiftUtils.getParentDirectory(remote) ;		
 		String ending = local.getName() + SwiftUtils.separator ;
@@ -1222,6 +1252,29 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	}
 	
 	
+	private Queue<Path> getAllFilesPath (Path srcDir, boolean inludeDir) throws IOException
+	{
+		try 
+		{
+			return FileUtils.getAllFilesPath(srcDir, true) ;
+		} 
+		catch (IOException e) 
+		{
+			if (e instanceof AccessDeniedException) {
+				StringBuilder msg = new StringBuilder () ;
+				msg.append("File Access Denied") ;
+				if (((AccessDeniedException)e).getFile() != null) {
+					msg.append(": ") ;
+					msg.append(((AccessDeniedException)e).getFile()) ;
+				}
+				throw new CommandException (msg.toString()) ;
+			}
+			else
+				throw e ;
+		}
+	}
+	
+	
     /**
      * {@inheritDoc}.
      * @throws IOException 
@@ -1232,7 +1285,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 		CheckAccount () ;
     	
 		Path source = Paths.get(directory.getPath()) ;
-		Queue<Path> filesQueue = FileUtils.getAllFilesPath(source, true) ;
+		Queue<Path> filesQueue = getAllFilesPath(source, true) ;
 		
 		String parentDir = SwiftUtils.getParentDirectory(parentObject) ;
 		

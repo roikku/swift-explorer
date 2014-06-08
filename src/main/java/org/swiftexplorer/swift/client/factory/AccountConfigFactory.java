@@ -16,20 +16,31 @@ package org.swiftexplorer.swift.client.factory;
 
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.client.factory.AuthenticationMethod;
+import org.swiftexplorer.swift.SwiftAccess;
+import org.swiftexplorer.swift.client.impl.HubicAccessProvider;
 
 public class AccountConfigFactory {
 	private AccountConfigFactory () {} ;
 	
-	public static AccountConfig getHubicAccountConfig ()
+	
+	public static AccountConfig getHubicAccountConfig (final SwiftAccess sa)
 	{
 	    AccountConfig accConf = new AccountConfig () ;
 	    accConf.setDisableSslValidation(false);
-	    accConf.setAuthenticationMethod(AuthenticationMethod.BASIC);
+	    accConf.setAuthenticationMethod(AuthenticationMethod.EXTERNAL);
 	    accConf.setMock(false);
 	    accConf.setAllowReauthenticate(true);
 	    accConf.setAllowCaching(true) ;
+	    accConf.setAccessProvider (getHubicAccessProvider (sa)) ;
 	    return accConf ;
 	}
+	
+	
+    private static AuthenticationMethod.AccessProvider getHubicAccessProvider (final SwiftAccess sa)
+    {
+    	return new HubicAccessProvider (sa) ;
+    }
+    
 	
 	public static AccountConfig getKeystoneAccountConfig ()
 	{
