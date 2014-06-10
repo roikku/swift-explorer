@@ -98,7 +98,7 @@ public class DifferencesFinder {
 			else
 			{
 				long size = FileUtils.getFileAttr(filePath).size() ;
-				if (size <= segmentSize)
+				if (segmentSize <= 0 || size <= segmentSize)
 					this.md5 = FileUtils.getMD5(filePath.toFile()) ;
 				else
 					this.md5 = FileUtils.getSumOfSegmentsMd5(filePath.toFile(), segmentSize) ;

@@ -116,7 +116,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	public synchronized void login(AccountConfig accConf, SwiftCallback callback) {
 
 		account = new AccountFactory(accConf).setAuthUrl("").createAccount();
-		largeObjectManager = new LargeObjectManager (account) ;
+		largeObjectManager = new LargeObjectManagerImpl (account) ;
 		
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -130,7 +130,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	public synchronized void login(AccountConfig accConf, HasProxySettings proxySettings, SwiftCallback callback) {
 
 		account = new AccountFactory(accConf).setAuthUrl("").setHttpClient(new HttpClientFactoryImpl ().getHttpClient(accConf, proxySettings)).createAccount();
-		largeObjectManager = new LargeObjectManager (account) ;
+		largeObjectManager = new LargeObjectManagerImpl (account) ;
 		
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -144,7 +144,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
     public synchronized void login(AccountConfig accConf, String url, String tenant, String user, String pass, SwiftCallback callback) {
 
     	account = new AccountFactory(accConf).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url).createAccount();
-    	largeObjectManager = new LargeObjectManager (account) ;
+    	largeObjectManager = new LargeObjectManagerImpl (account) ;
     	
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
@@ -1097,7 +1097,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 			throw new IllegalArgumentException () ;
 		
 		List<Pair<? extends ComparisonItem, ? extends ComparisonItem> > ret = new ArrayList<> () ;
-		
+
 		RemoteItem ri = new RemoteItem (remote) ;
 		LocalItem li = new LocalItem (Paths.get(local.getPath()), Paths.get(local.getPath()).getParent(), getActualSegmentSize (remote)) ;	
 		

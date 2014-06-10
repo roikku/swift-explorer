@@ -50,7 +50,7 @@ public class LargeObjectManagerTest {
 	
     private SwiftCallback callback;
     private Account account;
-    private LargeObjectManager largeObjectManager ;
+    private LargeObjectManagerImpl largeObjectManager ;
     
     private final long segmentSize = 800 ;
     private final long fileSize = 8192 ;
@@ -72,7 +72,7 @@ public class LargeObjectManagerTest {
         Mockito.verify(callback, Mockito.atLeastOnce()).onLoginSuccess();
         account = ((SwiftOperationsImpl)ops).getAccount() ;
         
-        largeObjectManager = new LargeObjectManager (account) ;
+        largeObjectManager = new LargeObjectManagerImpl (account) ;
         
         container = account.getContainer("x").create();
     }
