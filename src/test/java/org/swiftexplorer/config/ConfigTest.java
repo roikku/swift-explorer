@@ -198,29 +198,73 @@ public class ConfigTest {
 		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
 		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
 		assertTrue (swiftSettings.hideSegmentsContainers()) ;
+		assertTrue (swiftSettings.getPreferredRegion() == null) ;
     }
     
     
     @Test
-    public void shouldUpdateSwiftSetting() throws IOException {
+    public void shouldUpdateSwiftSettingSegmentationSize() throws IOException {
     	
 		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
 		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
 		assertTrue (swiftSettings.hideSegmentsContainers()) ;
+		assertTrue (swiftSettings.getPreferredRegion() == null) ;
 		
 		byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
 
 		long newSize = 12345678 ;
-		boolean hideSegCont = false ;
 		
 		assertTrue (newSize >= SwiftParameters.MIN_SEGMENTATION_SIZE) ;
 		assertTrue (newSize <= SwiftParameters.MAX_SEGMENTATION_SIZE) ;
 
-		SwiftParameters newParameters = new SwiftParameters.Builder(newSize, hideSegCont).build() ;
+		SwiftParameters newParameters = new SwiftParameters.Builder(newSize, swiftSettings.hideSegmentsContainers()).build() ;
 		Configuration.INSTANCE.updateSwiftParameters(newParameters);
 		
 		assertTrue (newSize == swiftSettings.getSegmentationSize()) ;
+		
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateSwiftSettingHideContainer() throws IOException {
+    	
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers()) ;
+		assertTrue (swiftSettings.getPreferredRegion() == null) ;
+		
+		byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+
+		boolean hideSegCont = false ;
+
+		SwiftParameters newParameters = new SwiftParameters.Builder(swiftSettings.getSegmentationSize(), hideSegCont).build() ;
+		Configuration.INSTANCE.updateSwiftParameters(newParameters);
+		
 		assertTrue (swiftSettings.hideSegmentsContainers() == hideSegCont) ;
+		
+		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;
+    }
+    
+    
+    @Test
+    public void shouldUpdateSwiftSettingPreferredRegion() throws IOException {
+    	
+		HasSwiftSettings swiftSettings = Configuration.INSTANCE.getSwiftSettings() ;
+		assertTrue (50000000 == swiftSettings.getSegmentationSize()) ;
+		assertTrue (swiftSettings.hideSegmentsContainers()) ;
+		assertTrue (swiftSettings.getPreferredRegion() == null) ;
+		
+		byte[] initFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
+
+		String newRegion = "reg" ;
+		
+		SwiftParameters newParameters = new SwiftParameters.Builder(swiftSettings.getSegmentationSize(), swiftSettings.hideSegmentsContainers(), newRegion).build() ;
+		Configuration.INSTANCE.updateSwiftParameters(newParameters);
+		
+		assertTrue (newRegion.equals(swiftSettings.getPreferredRegion())) ;
 		
 		byte[] updatedFileContents = FileUtils.readFileToByteArray (configSettingFile) ;
 		assertFalse(Arrays.equals(updatedFileContents, initFileContents)) ;

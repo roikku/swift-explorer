@@ -32,6 +32,8 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 	
 	private volatile boolean hideSegmentsContainers = true ;
 	
+	private volatile String preferredRegion = null ;
+	
 	public SwiftSettingsImpl (String baseProperty)
 	{
 		super () ;
@@ -51,6 +53,7 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 		// ...
 		hideSegmentsContainers = this.config.getBoolean(baseProperty + ".hideSegmentsContainers", true) ;
 		segmentationSize = Math.min(this.config.getLong(baseProperty + ".segmentationSize", defaultSegmentationSize), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
+		preferredRegion = this.config.getString(baseProperty + ".preferredRegion", null) ;
 	}
 	
 	
@@ -63,6 +66,12 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 	@Override
 	public boolean hideSegmentsContainers() {
 		return hideSegmentsContainers;
+	}
+	
+	
+	@Override
+	public String getPreferredRegion() {
+		return preferredRegion;
 	}
 	
 	
@@ -81,9 +90,12 @@ public class SwiftSettingsImpl implements HasSwiftSettings {
 		
 		this.segmentationSize = Math.min(swiftParam.getSegmentationSize(), UploadInstructions.MAX_SEGMENTATION_SIZE) ;
 		this.hideSegmentsContainers = swiftParam.hideSegmentsContainers() ;
+		this.preferredRegion = swiftParam.getPreferredRegion() ;
 				
 		config.setProperty(baseProperty + ".segmentationSize", segmentationSize);	
 		config.setProperty(baseProperty + ".hideSegmentsContainers", hideSegmentsContainers);	
+		if (this.preferredRegion != null && !this.preferredRegion.isEmpty())
+			config.setProperty(baseProperty + ".preferredRegion", preferredRegion);
 		config.save();
 	}
 }

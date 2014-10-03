@@ -20,6 +20,7 @@ public class SwiftParameters implements HasSwiftSettings {
 
 	private final long segmentationSize ;
 	private final boolean hideSegmentsContainers ;
+	private final String preferredRegion ;
 	
 	public static final long MIN_SEGMENTATION_SIZE = 10485760 ; // 10MB
 	public static final long MAX_SEGMENTATION_SIZE = UploadInstructions.MAX_SEGMENTATION_SIZE ;
@@ -37,11 +38,18 @@ public class SwiftParameters implements HasSwiftSettings {
 	}
 	
 	
+	@Override
+	public String getPreferredRegion() {
+		return preferredRegion;
+	}
+	
+	
 	private SwiftParameters (Builder b)
 	{
 		super () ;
 		this.segmentationSize = b.segmentationSize ;
 		this.hideSegmentsContainers = b.hideSegmentsContainers ;
+		this.preferredRegion = b.preferredRegion ;
 	}
 	
 	
@@ -49,12 +57,19 @@ public class SwiftParameters implements HasSwiftSettings {
 	{
 		private final long segmentationSize ;
 		private final boolean hideSegmentsContainers ;
+		private final String preferredRegion ;
         
         public Builder (long segmentationSize, boolean hideSegmentsContainers)
+        {
+        	this (segmentationSize, hideSegmentsContainers, null) ;
+        }
+        
+        public Builder (long segmentationSize, boolean hideSegmentsContainers, String preferredRegion)
         {
         	super () ;
         	this.segmentationSize = Math.max(MIN_SEGMENTATION_SIZE, Math.min(segmentationSize, MAX_SEGMENTATION_SIZE)) ;
         	this.hideSegmentsContainers = hideSegmentsContainers ;
+        	this.preferredRegion = preferredRegion ;
         }
         
         public SwiftParameters build ()

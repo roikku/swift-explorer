@@ -32,6 +32,7 @@
 package org.swiftexplorer.swift.operations;
 
 import org.swiftexplorer.config.proxy.HasProxySettings;
+import org.swiftexplorer.config.swift.HasSwiftSettings;
 import org.swiftexplorer.swift.SwiftAccess;
 import org.swiftexplorer.util.Pair;
 
@@ -209,33 +210,33 @@ public interface SwiftOperations {
     /**
      * performs a login.
      * @param accConf.
-     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120). 
+     * @param swiftSettings has the preferred region and the segmentation size (the maximum segment size for large object support (must be between 10485760 and 5368709120)).
      * @param url the url to login against.
      * @param tenant the tenant.
      * @param user the username.
      * @param pass the password.
      * @param callback the callback.
      */
-    void login(AccountConfig accConf, long segmentationSize, String url, String tenant, String user, String pass, SwiftCallback callback);
+    void login(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String user, String pass, SwiftCallback callback);
 
     
     /**
      * performs a login.
      * @param accConf.
-     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120).
+     * @param swiftSettings has the preferred region and the segmentation size (the maximum segment size for large object support (must be between 10485760 and 5368709120)).
      * @param callback the callback.
      */
-    void login(AccountConfig accConf, long segmentationSize, SwiftCallback callback);
+    void login(AccountConfig accConf, HasSwiftSettings swiftSettings, SwiftCallback callback);
     
     
     /**
      * performs a login.
      * @param accConf.
-     * @param segmentationSize the maximum segment size for large object support (must be between 10485760 and 5368709120).
-     * `param proxySettings.
+     * @param swiftSettings has the preferred region and the segmentation size (the maximum segment size for large object support (must be between 10485760 and 5368709120)).
+     * @param proxySettings.
      * @param callback the callback.
      */
-    void login(AccountConfig accConf, long segmentationSize, HasProxySettings proxySettings, SwiftCallback callback);
+    void login(AccountConfig accConf, HasSwiftSettings swiftSettings, HasProxySettings proxySettings, SwiftCallback callback);
     
 
     /**

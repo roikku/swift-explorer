@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.swiftexplorer.TestUtils;
+import org.swiftexplorer.config.swift.SwiftParameters;
 import org.swiftexplorer.swift.client.factory.AccountConfigFactory;
 import org.swiftexplorer.swift.operations.SwiftOperations.SwiftCallback;
 import org.swiftexplorer.swift.util.SwiftUtils;
@@ -68,7 +69,11 @@ public class LargeObjectManagerTest {
         callback = Mockito.mock(SwiftCallback.class);
 
     	SwiftOperations ops = new SwiftOperationsImpl();
-    	ops.login(accConf, segmentSize, "http://localhost:8080/", "user", "pass", "secret", callback);
+    	// We need to mockup SwiftParameters, because the builder constrains the minimum size
+    	//SwiftParameters param = new SwiftParameters.Builder(segmentSize, true).build() ;
+    	SwiftParameters param = Mockito.mock(SwiftParameters.class);
+    	Mockito.when(param.getSegmentationSize()).thenReturn(segmentSize) ;
+    	ops.login(accConf, param, "http://localhost:8080/", "user", "pass", "secret", callback);
         Mockito.verify(callback, Mockito.atLeastOnce()).onLoginSuccess();
         account = ((SwiftOperationsImpl)ops).getAccount() ;
         

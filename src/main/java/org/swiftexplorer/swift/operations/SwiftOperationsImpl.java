@@ -33,6 +33,7 @@ package org.swiftexplorer.swift.operations;
 
 
 import org.swiftexplorer.config.proxy.HasProxySettings;
+import org.swiftexplorer.config.swift.HasSwiftSettings;
 import org.swiftexplorer.swift.client.impl.HttpClientFactoryImpl;
 import org.swiftexplorer.swift.operations.DifferencesFinder.LocalItem;
 import org.swiftexplorer.swift.operations.DifferencesFinder.RemoteItem;
@@ -115,11 +116,7 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	@Override
 	public synchronized void login(AccountConfig accConf, SwiftCallback callback) {
 
-		account = new AccountFactory(accConf).setAuthUrl("").createAccount();
-		largeObjectManager = new LargeObjectManagerImpl (account) ;
-		
-        callback.onLoginSuccess();
-        callback.onNumberOfCalls(account.getNumberOfCalls());
+		this.login(accConf, null, null, callback);
 	}
 	
 	
@@ -129,9 +126,49 @@ public class SwiftOperationsImpl implements SwiftOperations {
 	@Override
 	public synchronized void login(AccountConfig accConf, HasProxySettings proxySettings, SwiftCallback callback) {
 
-		account = new AccountFactory(accConf).setAuthUrl("").setHttpClient(new HttpClientFactoryImpl ().getHttpClient(accConf, proxySettings)).createAccount();
-		largeObjectManager = new LargeObjectManagerImpl (account) ;
+		this.login(accConf, null, proxySettings, callback);
+	}
+    
+    
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public synchronized void login(AccountConfig accConf, HasSwiftSettings swiftSettings, SwiftCallback callback) {
+
+		this.login(accConf, swiftSettings, null, callback);
+	}
+	
+	
+    /**
+     * {@inheritDoc}.
+     */
+	@Override
+	public synchronized void login(AccountConfig accConf, HasSwiftSettings swiftSettings, HasProxySettings proxySettings, SwiftCallback callback) {
+
+		String preferredRegion = null ;
+		if (swiftSettings != null) {
+			
+	    	this.segmentationSize = swiftSettings.getSegmentationSize() ;
+	    	useCustomSegmentation = true ;
+	    	preferredRegion = swiftSettings.getPreferredRegion() ;
+	    	preferredRegion = ((preferredRegion == null || preferredRegion.trim().isEmpty()) ? (null) : (preferredRegion.trim())) ;
+		}
 		
+		if (swiftSettings == null && proxySettings == null) {
+			
+			account = new AccountFactory(accConf).setAuthUrl("").createAccount();
+		} else if (swiftSettings == null) {
+			
+			account = new AccountFactory(accConf).setAuthUrl("").setHttpClient(new HttpClientFactoryImpl ().getHttpClient(accConf, proxySettings)).createAccount();
+		} else if (proxySettings == null) {
+			
+			account = new AccountFactory(accConf).setAuthUrl("").setPreferredRegion(preferredRegion).createAccount();
+		} else {
+				
+			account = new AccountFactory(accConf).setAuthUrl("").setPreferredRegion(preferredRegion).setHttpClient(new HttpClientFactoryImpl ().getHttpClient(accConf, proxySettings)).createAccount();
+		}
+		largeObjectManager = new LargeObjectManagerImpl (account) ;
         callback.onLoginSuccess();
         callback.onNumberOfCalls(account.getNumberOfCalls());
 	}
@@ -143,50 +180,30 @@ public class SwiftOperationsImpl implements SwiftOperations {
     @Override
     public synchronized void login(AccountConfig accConf, String url, String tenant, String user, String pass, SwiftCallback callback) {
 
-    	account = new AccountFactory(accConf).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url).createAccount();
-    	largeObjectManager = new LargeObjectManagerImpl (account) ;
-    	
-        callback.onLoginSuccess();
-        callback.onNumberOfCalls(account.getNumberOfCalls());
+    	this.login(accConf, null, url, tenant, user, pass, callback) ;
     }
     
-    
-    /**
-     * {@inheritDoc}.
-     */
-	@Override
-	public synchronized void login(AccountConfig accConf, long segmentationSize, SwiftCallback callback) {
-
-    	this.login(accConf, callback);
-    	
-    	this.segmentationSize = segmentationSize ;
-    	useCustomSegmentation = true ;
-	}
-	
-	
-    /**
-     * {@inheritDoc}.
-     */
-	@Override
-	public synchronized void login(AccountConfig accConf, long segmentationSize, HasProxySettings proxySettings, SwiftCallback callback) {
-
-    	this.login(accConf, proxySettings, callback);
-    	
-    	this.segmentationSize = segmentationSize ;
-    	useCustomSegmentation = true ;
-	}
-	
 	
     /**
      * {@inheritDoc}.
      */
     @Override
-    public synchronized void login(AccountConfig accConf, long segmentationSize, String url, String tenant, String user, String pass, SwiftCallback callback) {
+    public synchronized void login(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String user, String pass, SwiftCallback callback) {
 
-    	this.login(accConf, url, tenant, user, pass, callback);
+		String preferredRegion = null ;
+		if (swiftSettings != null) {
+			
+	    	this.segmentationSize = swiftSettings.getSegmentationSize() ;
+	    	useCustomSegmentation = true ;
+	    	preferredRegion = swiftSettings.getPreferredRegion() ;
+	    	preferredRegion = ((preferredRegion == null || preferredRegion.trim().isEmpty()) ? (null) : (preferredRegion.trim())) ;
+		}
+		
+    	account = new AccountFactory(accConf).setPreferredRegion(preferredRegion).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url).createAccount();
+    	largeObjectManager = new LargeObjectManagerImpl (account) ;
         
-    	this.segmentationSize = segmentationSize ;
-    	useCustomSegmentation = true ;
+        callback.onLoginSuccess();
+        callback.onNumberOfCalls(account.getNumberOfCalls());
     }
 
 

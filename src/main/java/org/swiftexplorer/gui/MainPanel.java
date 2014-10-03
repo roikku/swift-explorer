@@ -278,7 +278,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     private final boolean nativeMacOsX = SwiftExplorer.isMacOsX() ; 
     
     private final boolean createDefaultContainerInMockMode = true ;
-    private final boolean allowCustomeSegmentationSize = true ;
+    private final boolean allowCustomeSwiftSettings = true ;
     
     private volatile boolean hideSegmentsContainers = false ; 
     
@@ -1005,8 +1005,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 								}
 							});
 
-					if (allowCustomeSegmentationSize)
-						ops.login(AccountConfigFactory.getHubicAccountConfig(sa), config.getSwiftSettings().getSegmentationSize(), config.getHttpProxySettings(), cb);
+					if (allowCustomeSwiftSettings)
+						ops.login(AccountConfigFactory.getHubicAccountConfig(sa), config.getSwiftSettings(), config.getHttpProxySettings(), cb);
 					else
 						ops.login(AccountConfigFactory.getHubicAccountConfig(sa), config.getHttpProxySettings(), cb);
 				}
@@ -1036,8 +1036,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
                         JOptionPane.showMessageDialog(loginDialog,  getLocalizedString("Login_Failed") + "\n" + ex.toString(), getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
-            	if (allowCustomeSegmentationSize)
-            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), config.getSwiftSettings().getSegmentationSize(), authUrl, tenant, username, new String(pass), cb);
+            	if (allowCustomeSwiftSettings)
+            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), config.getSwiftSettings(), authUrl, tenant, username, new String(pass), cb);
             	else
             		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), authUrl, tenant, username, new String(pass), cb);
             }
@@ -1086,8 +1086,8 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	if (confirm (getLocalizedString("confirm_connection_to_simulator")))
     	{
-    		if (allowCustomeSegmentationSize)
-    			ops.login(AccountConfigFactory.getMockAccountConfig(), config.getSwiftSettings().getSegmentationSize(), "http://localhost:8080/", "user", "pass", "secret", cb);
+    		if (allowCustomeSwiftSettings)
+    			ops.login(AccountConfigFactory.getMockAccountConfig(), config.getSwiftSettings(), "http://localhost:8080/", "user", "pass", "secret", cb);
     		else
     			ops.login(AccountConfigFactory.getMockAccountConfig(), "http://localhost:8080/", "user", "pass", "secret", cb);
     	}
@@ -1477,7 +1477,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         
         //
         settingsMenu.add(setAccessibleContext(new JMenuItem(settingProxyAction))) ;
-        if (allowCustomeSegmentationSize)
+        if (allowCustomeSwiftSettings)
         	settingsMenu.add(setAccessibleContext(new JMenuItem(settingSwiftAction))) ;
         if (!nativeMacOsX) 
         {

@@ -164,6 +164,7 @@ public class SwiftPanel extends JPanel {
     private final JTextField segmentationSizeTf = new JTextField();
     private final JCheckBox hideSegmentsContainer ;
     private final SegmentationSizeSlider segmentationSizeSlider ;
+    private final JTextField preferredRegionTf = new JTextField();
     
     private final HasSwiftSettings swiftSettings ;
     
@@ -196,6 +197,9 @@ public class SwiftPanel extends JPanel {
         segmentationSizeSlider.setMaximum(SwiftParameters.MAX_SEGMENTATION_SIZE) ;
         segmentationSizeSlider.setValue(this.swiftSettings.getSegmentationSize()) ;
         
+        String preferredRegion = this.swiftSettings.getPreferredRegion() ;
+        preferredRegionTf.setText((preferredRegion == null)?(""):(preferredRegion)) ;
+        
         initSegmentationSizeSelection () ;
 
         setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
@@ -223,6 +227,15 @@ public class SwiftPanel extends JPanel {
 
         box.add(boxSegmentationSize) ;
         box.add(boxHideSegmentsContainer) ;
+        
+        Box boxPreferredRegion = Box.createHorizontalBox();
+        boxPreferredRegion.setBorder(BorderFactory.createTitledBorder(getLocalizedString("Preferred_Region")));
+        boxPreferredRegion.add(new JLabel(getLocalizedString("Region"))) ;
+        boxPreferredRegion.add(Box.createHorizontalStrut(8)) ;
+        boxPreferredRegion.add(preferredRegionTf) ;
+        
+        box.add(Box.createVerticalStrut(15)) ;
+        box.add(boxPreferredRegion) ;
 
         outer.add(box);
         this.add(outer, BorderLayout.NORTH);
@@ -319,7 +332,12 @@ public class SwiftPanel extends JPanel {
         }*/
         long segmentationSize = roundToNearestUnit (segmentationSizeSlider.getValue()) ;
         
-        SwiftParameters.Builder paramBuilder = new SwiftParameters.Builder (segmentationSize, hideSegmentsContainer.isSelected()) ;
+        String preferredRegion = preferredRegionTf.getText() ;
+        if (preferredRegion == null || preferredRegion.trim().isEmpty()) {
+        	preferredRegion = null ;
+        }
+        
+        SwiftParameters.Builder paramBuilder = new SwiftParameters.Builder (segmentationSize, hideSegmentsContainer.isSelected(), preferredRegion) ;
     	callback.setSwiftParameters(paramBuilder.build());
     }
     

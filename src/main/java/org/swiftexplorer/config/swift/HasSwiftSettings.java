@@ -17,4 +17,5 @@ package org.swiftexplorer.config.swift;
 public interface HasSwiftSettings {
 	public long getSegmentationSize () ;
 	public boolean hideSegmentsContainers () ;
+	public String getPreferredRegion () ;
 }
