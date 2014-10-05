@@ -16,12 +16,21 @@ package org.swiftexplorer.gui;
 
 import java.awt.Dimension;
 import java.awt.FontMetrics;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.SwingUtilities;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 
 public class ProgressPanel extends JPanel {
 
@@ -31,37 +40,91 @@ public class ProgressPanel extends JPanel {
     private final JLabel progressLabelTotal = new JLabel () ;
     private final JProgressBar progressBarCurrent = new JProgressBar (0, 100) ;
     private final JLabel progressLabelCurrent = new JLabel () ;
+   
+    private final int border = 15 ;
+    private final int initialWidth = 500 ;
+    private final int initialHeight = 160 ;
     
+    
+	static private class Listener extends ComponentAdapter implements AncestorListener {
+
+		private int height = -1 ;
+		private final JPanel panel ;
+		
+	
+		public Listener(JPanel panel) {
+			super();
+			this.panel = panel;
+		}
+
+
+		@Override
+		public void componentResized(ComponentEvent e) {
+			if (height > 0 && e.getComponent() instanceof JPanel) {
+				JDialog parent = (JDialog) SwingUtilities.getAncestorOfClass(JDialog.class, e.getComponent());
+				if (parent != null) {
+					parent.setSize(new Dimension(parent.getWidth(), height));
+				}
+			}
+			super.componentResized(e);
+		}
+
+
+		@Override
+		public void ancestorAdded(AncestorEvent event) { 
+			JDialog parent = (JDialog) SwingUtilities.getAncestorOfClass(JDialog.class, panel);
+			if (parent != null) {
+				height = parent.getHeight() ;
+			}
+		}
+
+
+		@Override
+		public void ancestorRemoved(AncestorEvent event) {
+		}
+
+
+		@Override
+		public void ancestorMoved(AncestorEvent event) {
+		}
+	}
+	
     
     public ProgressPanel ()
     {
-    	super () ;
-        initProgressBarAndLabel (progressBarTotal, progressLabelTotal) ;
-        initProgressBarAndLabel (progressBarCurrent, progressLabelCurrent) ;
+    	super (new GridBagLayout()) ;
+    	GridBagConstraints c = new GridBagConstraints();    	
+    	setBorder(BorderFactory.createEmptyBorder(border, border, border, border)) ;
         
-        final int border = 15 ;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
+        c.insets = new Insets(5, 0, 0, 0) ;
         
-    	Box box = Box.createVerticalBox() ;
-    	box.setBorder(BorderFactory.createEmptyBorder(border, border, border, border));
+        c.gridx = 0;
+        c.gridy = 0;
+    	this.add(progressLabelTotal, c) ;
     	
-    	box.add (progressLabelTotal) ;
-    	box.add (progressBarTotal) ;
+        c.gridx = 0;
+        c.gridy = 1;
+    	this.add(progressBarTotal, c) ;
     	
-    	box.add(Box.createVerticalStrut(10)) ;
+        c.gridx = 0;
+        c.gridy = 2;
+    	this.add(Box.createVerticalStrut(10), c) ;
     	
-    	box.add (progressLabelCurrent) ;
-    	box.add (progressBarCurrent) ;
+        c.gridx = 0;
+        c.gridy = 3;
+    	this.add(progressLabelCurrent, c) ;
     	
-    	this.add(box) ;
-    }
-    
-    
-    private final void initProgressBarAndLabel (JProgressBar progressBar, JLabel progressLabel)
-    {
-    	progressBar.setStringPainted(true);
-    	progressLabel.setMinimumSize(new Dimension (200, 10)) ;
-    	progressLabel.setPreferredSize(new Dimension (400, 30)) ;
-    	progressLabel.setMaximumSize(new Dimension (Integer.MAX_VALUE, Integer.MAX_VALUE)) ;
+        c.gridx = 0;
+        c.gridy = 4;
+    	this.add(progressBarCurrent, c) ;
+    	
+    	setPreferredSize(new Dimension (initialWidth, initialHeight)) ;
+    	
+    	Listener listener = new Listener(this) ;
+    	addComponentListener(listener);
+    	addAncestorListener(listener) ;
     }
     
     
