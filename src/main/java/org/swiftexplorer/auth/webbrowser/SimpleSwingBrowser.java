@@ -64,10 +64,11 @@ import javafx.scene.Scene;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebEvent;
 import javafx.scene.web.WebView;
- 
 
-
-
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import javax.swing.*;
 
 import org.slf4j.Logger;
@@ -77,9 +78,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.net.MalformedURLException;
 import java.net.URL;
-  
 
-
+import java.security.GeneralSecurityException;
 
 import static javafx.concurrent.Worker.State.FAILED;
 
@@ -100,9 +100,12 @@ public class SimpleSwingBrowser extends JDialog  {
     private final JTextField txtURL = new JTextField();
     private final JProgressBar progressBar = new JProgressBar();
  
+    static {
+    	setLaxTrustManagerSslv3 () ;
+    }
     
     public SimpleSwingBrowser() {
-        super();
+        super();      
         initComponents();
         
         txtURL.setVisible(false);
@@ -122,8 +125,34 @@ public class SimpleSwingBrowser extends JDialog  {
         progressBar.setVisible(false);
     }
 
+    private static void setLaxTrustManagerSslv3 () {
+    	
+    	// temporary method to fix hubic login problem (https://github.com/roikku/swift-explorer/issues/45)...
+    	// use java -Djavax.net.debug=all for details
+    
+        TrustManager[] trustAllCertificates = new TrustManager[] { 
+        	    new X509TrustManager() {     
+        	        public java.security.cert.X509Certificate[] getAcceptedIssuers() { 
+        	            return null;
+        	        } 
+        	        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+        	        } 
+        	        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+        	        }
+        	    } 
+        	}; 
+        
+        try {
+            SSLContext sslContext = SSLContext.getInstance("SSLv3"); 
+            sslContext.init(null, trustAllCertificates, new java.security.SecureRandom()); 
+            HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+        } catch (GeneralSecurityException e) {
+        	logger.error("Error occurred while installing trust manager", e);
+        }
+    }
     
     private void initComponents() {
+    	    	
         createScene();
  
         ActionListener al = new ActionListener() {
@@ -258,7 +287,6 @@ public class SimpleSwingBrowser extends JDialog  {
                 if (tmp == null) {
                     tmp = toURL("http://" + url);
                 }
- 
                 engine.load(tmp);
             }
         });
