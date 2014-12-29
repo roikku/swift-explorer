@@ -46,7 +46,7 @@ public enum Configuration implements HasConfiguration {
 	private final String defaultXmlPath ; 
 	
 	private final String appName = "Swift Explorer" ;
-	private final String appVersion = "1.0.7-SNAPSHOT" ;
+	private final String appVersion = "1.0.7" ;
 	
 	@Override
 	public String getAppName ()

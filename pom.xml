@@ -4,7 +4,7 @@
 
 	<groupId>org.swiftexplorer</groupId>
 	<artifactId>SwiftExplorer</artifactId>
-	<version>1.0.7-SNAPSHOT</version>
+	<version>1.0.7</version>
 	<packaging>jar</packaging>
 
 	<name>SwiftExplorer</name>
@@ -57,7 +57,7 @@
 		<scribe.version>1.3.5</scribe.version>
 		<commons-codec.version>1.9</commons-codec.version>
 		<imgscalr-lib.version>4.2</imgscalr-lib.version>
-		<javafx-maven-plugin.version>2.0</javafx-maven-plugin.version>
+		<javafx-maven-plugin.version>8.1.2</javafx-maven-plugin.version>
 		<maven-eclipse-plugin.version>2.9</maven-eclipse-plugin.version>
 		<maven-assembly-plugin.version>2.4</maven-assembly-plugin.version>
 		<commons-collections.version>3.2.1</commons-collections.version>
