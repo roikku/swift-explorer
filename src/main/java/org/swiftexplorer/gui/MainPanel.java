@@ -1053,7 +1053,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
             loginPanel.setOwner(loginDialog);
             loginDialog.getContentPane().add(loginPanel);
             loginDialog.setModal(true);
-            loginDialog.setSize(480, 280);
+            loginDialog.setSize(520, 300);
             loginDialog.setResizable(false);
             loginDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
             center(loginDialog);
