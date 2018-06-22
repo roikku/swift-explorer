@@ -63,7 +63,7 @@ public class LoginPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
 
 	public interface LoginCallback {
-        void doLogin(String authUrl, String tenant, String username, char[] pass);
+        void doLogin(String authUrl, String tenant, String username, char[] pass, String preferredRegion);
     }
 
     private Action okAction = null ;
@@ -82,6 +82,7 @@ public class LoginPanel extends JPanel {
     private JTextField tenant = new JTextField();
     private JTextField username = new JTextField();
     private JPasswordField password = new JPasswordField();
+    private JTextField preferredRegion = new JTextField();
     private JLabel warningLabel = null ;
 
     private LoginCallback callback;
@@ -123,6 +124,7 @@ public class LoginPanel extends JPanel {
         box.add(new LabelComponentPanel("Tenant", tenant));
         box.add(new LabelComponentPanel("Username", username));
         box.add(new LabelComponentPanel("Password", password));
+        box.add(new LabelComponentPanel("Preferred Region", preferredRegion));
         //
         outer.add(box);
         outer.add(warn);
@@ -241,7 +243,7 @@ public class LoginPanel extends JPanel {
     }
 
     public void onOk() {
-        callback.doLogin(authUrl.getText().trim(), tenant.getText().trim(), username.getText().trim(), password.getPassword());
+        callback.doLogin(authUrl.getText().trim(), tenant.getText().trim(), username.getText().trim(), password.getPassword(), preferredRegion.getText().trim());
     }
 
     public void onCancel() {
