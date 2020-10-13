@@ -35,6 +35,7 @@ public class CredentialsStoreTest {
         cr.tenant = "test-tenant";
         cr.username = "test-user";
         cr.password = "boterhammetpindakaas".toCharArray();
+        cr.preferredRegion = "myregion1";
     }
 
     @Test

@@ -36,7 +36,7 @@ public class LabelComponentPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
         JLabel lbl = new JLabel(label, JLabel.RIGHT);
         lbl.setLabelFor(comp);
-        lbl.setPreferredSize(new Dimension(128, 24));
+        lbl.setPreferredSize(new Dimension(170, 24));
         this.add(lbl, BorderLayout.WEST);
         this.add(comp, BorderLayout.CENTER);
     }

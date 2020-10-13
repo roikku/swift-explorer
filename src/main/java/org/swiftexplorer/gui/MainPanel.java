@@ -166,6 +166,8 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import org.apache.commons.lang.StringUtils;
+import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.client.factory.AuthenticationMethod;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.exception.CommandExceptionError;
@@ -1020,10 +1022,10 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     
     
     public void onLogin() {
-        final JDialog loginDialog = new JDialog(owner, getLocalizedString("Login"));
+        final JDialog loginDialog = new JDialog(owner, getLocalizedString("Generic_Login"));
         final LoginPanel loginPanel = new LoginPanel(new LoginCallback() {
             @Override
-            public void doLogin(String authUrl, String tenant, String username, char[] pass) {
+            public void doLogin(String authUrl, String tenant, String username, char[] pass, String preferredRegion) {
             	SwiftCallback cb = GuiTreadingUtils.guiThreadSafe(SwiftCallback.class, new CloudieCallbackWrapper(callback) {
                     @Override
                     public void onLoginSuccess() {
@@ -1036,17 +1038,22 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
                         JOptionPane.showMessageDialog(loginDialog,  getLocalizedString("Login_Failed") + "\n" + ex.toString(), getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
                     }
                 });
-            	if (allowCustomeSwiftSettings)
-            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), config.getSwiftSettings(), authUrl, tenant, username, new String(pass), cb);
-            	else
-            		ops.login(AccountConfigFactory.getKeystoneAccountConfig(), authUrl, tenant, username, new String(pass), cb);
+				AccountConfig accountConfig = AccountConfigFactory.getKeystoneAccountConfig();
+				if (!StringUtils.isEmpty(preferredRegion)) {
+					accountConfig.setPreferredRegion(preferredRegion);
+				}
+				if (allowCustomeSwiftSettings)
+					ops.login(accountConfig, config.getSwiftSettings(), authUrl, tenant, username, new String(pass),
+							cb);
+				else
+					ops.login(accountConfig, authUrl, tenant, username, new String(pass), cb);
             }
         }, credentialsStore, stringsBundle);
         try {
             loginPanel.setOwner(loginDialog);
             loginDialog.getContentPane().add(loginPanel);
             loginDialog.setModal(true);
-            loginDialog.setSize(480, 280);
+            loginDialog.setSize(520, 305);
             loginDialog.setResizable(false);
             loginDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
             center(loginDialog);

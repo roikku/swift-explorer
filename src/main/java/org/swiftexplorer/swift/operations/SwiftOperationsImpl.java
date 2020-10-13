@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang.StringUtils;
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.client.factory.AccountFactory;
 import org.javaswift.joss.exception.CommandException;
@@ -190,13 +191,18 @@ public class SwiftOperationsImpl implements SwiftOperations {
     @Override
     public synchronized void login(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String user, String pass, SwiftCallback callback) {
 
-		String preferredRegion = null ;
+		String preferredRegion = null;
+
 		if (swiftSettings != null) {
 			
 	    	this.segmentationSize = swiftSettings.getSegmentationSize() ;
 	    	useCustomSegmentation = true ;
 	    	preferredRegion = swiftSettings.getPreferredRegion() ;
 	    	preferredRegion = ((preferredRegion == null || preferredRegion.trim().isEmpty()) ? (null) : (preferredRegion.trim())) ;
+			if (accConf != null && !StringUtils.isEmpty(accConf.getPreferredRegion())) {
+				// Override this property from dialog screen
+				preferredRegion = accConf.getPreferredRegion();
+			}
 		}
 		
     	account = new AccountFactory(accConf).setPreferredRegion(preferredRegion).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url).createAccount();

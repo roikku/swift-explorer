@@ -47,7 +47,7 @@ public class LoginPanelTest {
         LoginPanel loginPanel = new LoginPanel(callback, credentialsStore, null);
         loginPanel.onOk();
         //
-        Mockito.verify(callback).doLogin(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any(char[].class));
+        Mockito.verify(callback).doLogin(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any(char[].class), Mockito.anyString());
     }
 
 }
