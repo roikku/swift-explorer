@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.client.factory.AccountFactory;
+import org.javaswift.joss.client.factory.AuthenticationMethodScope;
 import org.javaswift.joss.exception.CommandException;
 import org.javaswift.joss.exception.CommandExceptionError;
 import org.javaswift.joss.instructions.UploadInstructions;
@@ -1603,5 +1604,55 @@ public class SwiftOperationsImpl implements SwiftOperations {
     	logger.error(String.format("OutOfMemory error occurred while calling SwiftOperationsImpl.%s", functionName), ome);
     	callback.onError(new CommandException ("The JVM ran out of memory - <font color=red><b>You must exit</b></font>"));
     	throw ome ; 
+	}
+
+
+	@Override
+	public void loginV3(AccountConfig accConf, String url, String tenant, String domain, String authScope, String user,
+			String pass, SwiftCallback callback) {
+		
+		this.loginV3(accConf, null, url, tenant, domain, authScope, user, pass, callback);
+		
+	}
+
+
+	@Override
+	public void loginV3(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String domain,
+			String authScope, String user, String pass, SwiftCallback callback) {
+	
+		String preferredRegion = null ;
+		if (swiftSettings != null) {
+			
+	    	this.segmentationSize = swiftSettings.getSegmentationSize() ;
+	    	useCustomSegmentation = true ;
+	    	preferredRegion = swiftSettings.getPreferredRegion() ;
+	    	preferredRegion = ((preferredRegion == null || preferredRegion.trim().isEmpty()) ? (null) : (preferredRegion.trim())) ;
+		}
+
+		AccountFactory accountFactory;
+		accountFactory = new AccountFactory(accConf).setPreferredRegion(preferredRegion).setUsername(user).setPassword(pass).setTenantName(tenant).setAuthUrl(url);
+		
+		if(domain != "") {
+			accountFactory.setDomain(domain);
+		}
+		
+		switch(authScope) {
+			case "default":
+				accountFactory.setAuthenticationMode(AuthenticationMethodScope.DEFAULT);
+				break;
+			case "domain":
+				accountFactory.setAuthenticationMode(AuthenticationMethodScope.DOMAIN_NAME);
+				break;
+			case "project":
+				accountFactory.setAuthenticationMode(AuthenticationMethodScope.PROJECT_NAME);
+				break;
+		}
+		
+		account = accountFactory.createAccount();
+    	largeObjectManager = new LargeObjectManagerImpl (account) ;
+        
+        callback.onLoginSuccess();
+        callback.onNumberOfCalls(account.getNumberOfCalls());
+		
 	}
 }

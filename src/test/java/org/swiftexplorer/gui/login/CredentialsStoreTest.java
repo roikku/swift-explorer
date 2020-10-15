@@ -33,6 +33,8 @@ public class CredentialsStoreTest {
         cr = new CredentialsStore.Credentials();
         cr.authUrl = "https://42.nl";
         cr.tenant = "test-tenant";
+        cr.domain = "test-domain";
+        cr.authScope = "default";
         cr.username = "test-user";
         cr.password = "boterhammetpindakaas".toCharArray();
     }

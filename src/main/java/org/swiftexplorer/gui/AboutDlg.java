@@ -49,13 +49,13 @@ public class AboutDlg
         URI uri = null ;
 		try 
 		{
-			uri = new URI("http://www.swiftexplorer.org");
+			uri = new URI("http://www.619.io/swift-explorer");
 		} 
 		catch (URISyntaxException e) 
 		{
 			logger.error("URL seems to be ill-formed", e);
 		}
-		final String buttontext = "www.swiftexplorer.org" ;
+		final String buttontext = "Original Swift Explorer: http://www.619.io/swift-explorer" ;
     	
 		Box mainBox = Box.createVerticalBox() ;  
 		mainBox.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));

@@ -53,6 +53,17 @@ public class AccountConfigFactory {
 	    return accConf ;
 	}
 	
+	public static AccountConfig getKeystoneV3AccountConfig ()
+	{
+	    AccountConfig accConf = new AccountConfig () ;
+	    accConf.setDisableSslValidation(false);
+	    accConf.setAuthenticationMethod(AuthenticationMethod.KEYSTONE_V3);
+	    accConf.setMock(false);
+	    accConf.setAllowReauthenticate(true);
+	    accConf.setAllowCaching(true) ;
+	    return accConf ;
+	}
+	
 	public static AccountConfig getMockAccountConfig ()
 	{
 	    AccountConfig accConf = new AccountConfig () ;

@@ -54,6 +54,8 @@ import org.swiftexplorer.gui.login.CredentialsStore;
 import org.swiftexplorer.gui.login.CredentialsStore.Credentials;
 import org.swiftexplorer.gui.login.LoginPanel;
 import org.swiftexplorer.gui.login.LoginPanel.LoginCallback;
+import org.swiftexplorer.gui.login.LoginV3Panel;
+import org.swiftexplorer.gui.login.LoginV3Panel.LoginV3Callback;
 import org.swiftexplorer.gui.preview.PreviewPanel;
 import org.swiftexplorer.gui.settings.PreferencesPanel;
 import org.swiftexplorer.gui.settings.PreferencesPanel.PreferencesCallback;
@@ -221,6 +223,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 
     private Action accountHubicLoginAction = null ;
     private Action accountGenericLoginAction = null ;
+    private Action accountGenericLoginV3Action = null;
     private Action accountSimulatorLoginAction = null ;
     private Action accountLogoutAction = null ;
     private Action accountQuitAction = null ;
@@ -582,6 +585,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     {
         accountHubicLoginAction = new ReflectionAction<MainPanel>(getLocalizedString("hubiC_Login"), getIcon("server_connect.png"), this, "onHubicLogin");
         accountGenericLoginAction = new ReflectionAction<MainPanel>(getLocalizedString("Generic_Login"), getIcon("server_connect.png"), this, "onLogin");
+        accountGenericLoginV3Action = new ReflectionAction<MainPanel>(getLocalizedString("Generic_Login_V3"), getIcon("server_connect.png"), this, "onLoginV3");
         accountLogoutAction = new ReflectionAction<MainPanel>(getLocalizedString("Logout"), getIcon("disconnect.png"), this, "onLogout");
         accountQuitAction = new ReflectionAction<MainPanel>(getLocalizedString("Quit"), getIcon("weather_rain.png"), this, "onQuit");
         accountSimulatorLoginAction= new ReflectionAction<MainPanel>(getLocalizedString("Simulator_Login"), getIcon("server_connect.png"), this, "onSimulatorLogin");
@@ -865,6 +869,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     public void enableDisableAccountMenu() {
         accountHubicLoginAction.setEnabled(!loggedIn);
         accountGenericLoginAction.setEnabled(!loggedIn);
+        accountGenericLoginV3Action.setEnabled(!loggedIn);
         accountSimulatorLoginAction.setEnabled(!loggedIn);
         accountLogoutAction.setEnabled(loggedIn);
         accountQuitAction.setEnabled(true);
@@ -955,6 +960,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
     	
     	accountHubicLoginAction.setEnabled(false);
     	accountGenericLoginAction.setEnabled(false);
+    	accountGenericLoginV3Action.setEnabled(false);
     	accountSimulatorLoginAction.setEnabled(false);
     	
 		new SwingWorker<SwiftAccess, Object>() {
@@ -979,6 +985,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
 				}
 				accountHubicLoginAction.setEnabled(true);
 				accountGenericLoginAction.setEnabled(true);
+				accountGenericLoginV3Action.setEnabled(true);
 				accountSimulatorLoginAction.setEnabled(false);
 				
 				if (sa == null)
@@ -1067,6 +1074,54 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         }
     }
 
+    public void onLoginV3() {
+        final JDialog loginDialog = new JDialog(owner, getLocalizedString("Login"));
+        final LoginV3Panel loginPanel = new LoginV3Panel(new LoginV3Callback() {
+            @Override
+            public void doLogin(String authUrl, String tenant, String domain, String authScope, String username, char[] pass) {
+            	SwiftCallback cb = GuiTreadingUtils.guiThreadSafe(SwiftCallback.class, new CloudieCallbackWrapper(callback) {
+                    @Override
+                    public void onLoginSuccess() {
+                        loginDialog.setVisible(false);
+                        super.onLoginSuccess();
+                    }
+
+                    @Override
+                    public void onError(CommandException ex) {
+                        JOptionPane.showMessageDialog(loginDialog,  getLocalizedString("Login_Failed") + "\n" + ex.toString(), getLocalizedString("Error"), JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            	if (allowCustomeSwiftSettings)
+            		ops.loginV3(AccountConfigFactory.getKeystoneV3AccountConfig(), config.getSwiftSettings(), authUrl, tenant, domain, authScope, username, new String(pass), cb);
+            	else
+            		ops.loginV3(AccountConfigFactory.getKeystoneV3AccountConfig(), authUrl, tenant, domain, authScope, username, new String(pass), cb);
+            }
+        }, credentialsStore, stringsBundle);
+        try {
+            loginPanel.setOwner(loginDialog);
+            loginDialog.getContentPane().add(loginPanel);
+            loginDialog.setModal(true);
+            loginDialog.setSize(480, 340);
+            loginDialog.setResizable(false);
+            loginDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            center(loginDialog);
+            loginDialog.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    loginPanel.onCancel();
+                }
+
+                @Override
+                public void windowOpened(WindowEvent e) {
+                    loginPanel.onShow();
+                }
+            });
+            loginDialog.setVisible(true);
+        } finally {
+            loginDialog.dispose();
+        }
+    }
+    
     public void onSimulatorLogin() {
     	
     	SwiftCallback cb = GuiTreadingUtils.guiThreadSafe(SwiftCallback.class, new CloudieCallbackWrapper(callback) {
@@ -1433,6 +1488,7 @@ public class MainPanel extends JPanel implements SwiftOperations.SwiftCallback {
         //
         accountMenu.add(setAccessibleContext(new JMenuItem(accountHubicLoginAction)));
         accountMenu.add(setAccessibleContext(new JMenuItem(accountGenericLoginAction)));
+        accountMenu.add(setAccessibleContext(new JMenuItem(accountGenericLoginV3Action)));
         accountMenu.add(setAccessibleContext(new JMenuItem(accountSimulatorLoginAction)));
         accountMenu.addSeparator();
         accountMenu.add(setAccessibleContext(new JMenuItem(accountLogoutAction)));
