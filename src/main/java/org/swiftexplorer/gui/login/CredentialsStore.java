@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * Stores credentials (in plain/encoded) text using the Java Preferences API.
@@ -52,7 +54,9 @@ public class CredentialsStore {
         }
 
         public String toString() {
-            return tenant + "-" + username;
+        	String serverName = getDomainName(authUrl);
+        	
+            return serverName + "-" + tenant + "-" + username;
         }
     }
 
@@ -146,6 +150,19 @@ public class CredentialsStore {
             chars[t] = (char) (chars[t] ^ garble[t % garble.length]);
         }
         return chars;
+    }
+    
+    public static String getDomainName(String url) {
+    	URI uri;
+    	String domain;
+		try {
+			uri = new URI(url);
+			domain = uri.getHost();
+		} catch (URISyntaxException e) {
+			domain = "invalid url";
+		}
+		
+		return domain == null ? "" : domain;
     }
 
 }
