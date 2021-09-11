@@ -48,7 +48,7 @@
 		<commons-configuration.version>1.10</commons-configuration.version>
 		<guava.version>16.0.1</guava.version>
 		<junit.version>4.10</junit.version>
-		<pdfbox.version>2.0.15</pdfbox.version>
+		<pdfbox.version>2.0.24</pdfbox.version>
 		<icu4j.version>3.8</icu4j.version>
 		<gson.version>2.2.4</gson.version>
 		<bcprov-jdk15.version>1.44</bcprov-jdk15.version>
