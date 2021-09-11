@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * Stores credentials (in plain/encoded) text using the Java Preferences API.
@@ -33,6 +35,8 @@ public class CredentialsStore {
         public String tenant;
         public String username;
         public char[] password;
+        public String domain;
+        public String authScope;
 
         @Override
         public boolean equals(Object obj) {
@@ -50,7 +54,9 @@ public class CredentialsStore {
         }
 
         public String toString() {
-            return tenant + "-" + username;
+        	String serverName = getDomainName(authUrl);
+        	
+            return serverName + "-" + tenant + "-" + username;
         }
     }
 
@@ -80,6 +86,8 @@ public class CredentialsStore {
         Credentials cr = new Credentials();
         cr.authUrl = node.get("authUrl", "");
         cr.tenant = node.get("tenant", "");
+        cr.domain = node.get("domain", "");
+        cr.authScope = node.get("authScope", "");
         cr.username = node.get("username", "");
         cr.password = garble(node.get("password", ""));
         return cr;
@@ -116,6 +124,8 @@ public class CredentialsStore {
     private void saveCredentials(Preferences node, Credentials cr) {
         node.put("authUrl", cr.authUrl);
         node.put("tenant", cr.tenant);
+        node.put("domain", cr.domain);
+        node.put("authScope", cr.authScope);
         node.put("username", cr.username);
         node.put("password", String.valueOf(garble(cr.password)));
     }
@@ -140,6 +150,19 @@ public class CredentialsStore {
             chars[t] = (char) (chars[t] ^ garble[t % garble.length]);
         }
         return chars;
+    }
+    
+    public static String getDomainName(String url) {
+    	URI uri;
+    	String domain;
+		try {
+			uri = new URI(url);
+			domain = uri.getHost();
+		} catch (URISyntaxException e) {
+			domain = "invalid url";
+		}
+		
+		return domain == null ? "" : domain;
     }
 
 }

@@ -191,6 +191,19 @@ public interface SwiftOperations {
 
     
     /**
+     * performs a login with Keystone V3.
+     * @param accConf.
+     * @param url the url to login against.
+     * @param tenant the tenant.
+     * @param domain the domain.
+     * @param authScope Authentication scope (default, domain, project or none)
+     * @param user the username.
+     * @param pass the password.
+     * @param callback the callback.
+     */
+    void loginV3(AccountConfig accConf, String url, String tenant, String domain, String authScope, String user, String pass, SwiftCallback callback);
+    
+    /**
      * performs a login.
      * @param accConf.
      * @param callback the callback.
@@ -218,6 +231,20 @@ public interface SwiftOperations {
      * @param callback the callback.
      */
     void login(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String user, String pass, SwiftCallback callback);
+
+    /**
+     * performs a login with Keystone V3.
+     * @param accConf.
+     * @param swiftSettings has the preferred region and the segmentation size (the maximum segment size for large object support (must be between 10485760 and 5368709120)).
+     * @param url the url to login against.
+     * @param tenant the tenant.
+     * @param domain the domain.
+     * @param authScope Authentication scope (default, domain, project or none)
+     * @param user the username.
+     * @param pass the password.
+     * @param callback the callback.
+     */
+    void loginV3(AccountConfig accConf, HasSwiftSettings swiftSettings, String url, String tenant, String domain, String authScope, String user, String pass, SwiftCallback callback);
 
     
     /**
